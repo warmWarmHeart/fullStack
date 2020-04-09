@@ -75,6 +75,9 @@ WebAssembly 是由主流浏览器厂商组成的 W3C 社区团体 制定的一�
 
 ## WebAssembly的一些概念
 
+### WebAssembly与JavaScript的交互流程
+[查看此博客了解详细](https://www.zcfy.cc/article/creating-a-webassembly-module-instance-with-javascript-x2605-mozilla-hacks-8211-the-web-developer-blog)
+
 ### 我们主要用的几个方法
 
 * WebAssembly.compile()
@@ -242,7 +245,7 @@ fetch('simple.wasm').then(response =>
 });
 ````
 
-## WebAssembly.Instance
+### WebAssembly.Instance
 
 * WebAssembly.Instance() 构造函数以同步方式实例化一个WebAssembly.Module 对象. 然而, 通常获取实例的方法是通过异步函数WebAssembly.instantiate()
 
@@ -258,4 +261,44 @@ fetch('simple.wasm').then(response =>
 var myInstance = new WebAssembly.Instance(module, importObject);
 
 ```
-* 
+### WebAssembly.Global
+WebAssembly.Global 对象表示一个全局变量实例, 可以被JavaScript 和importable/exportable 访问 ,跨越一个或多个WebAssembly.Module 实例. 他允许被多个modules动态连接.
+* 参数 
+    - descriptor {value, mutable}
+        + value: A USVString 表示全局变量的数据类型. 可以是i32, i64, f32, 或 f64.
+        + mutable: 布尔值决定是否可以修改. 默认是 false.
+    ```javascript
+    const output = document.getElementById('output');
+    
+    function assertEq(msg, got, expected) {
+        output.innerHTML += `Testing ${msg}: `;
+        if (got !== expected)
+            output.innerHTML += `FAIL!<br>Got: ${got}<br>Expected: ${expected}<br>`;
+        else
+            output.innerHTML += `SUCCESS! Got: ${got}<br>`;
+    }
+    
+    assertEq("WebAssembly.Global exists", typeof WebAssembly.Global, "function");
+    
+    const global = new WebAssembly.Global({value:'i32', mutable:true}, 0);
+    
+    WebAssembly.instantiateStreaming(fetch('global.wasm'), { js: { global } })
+    .then(({instance}) => {
+        assertEq("getting initial value from wasm", instance.exports.getGlobal(), 0);
+        global.value = 42;
+        assertEq("getting JS-updated value from wasm", instance.exports.getGlobal(), 42);
+        instance.exports.incGlobal();
+        assertEq("getting wasm-updated value from JS", global.value, 43);
+    });
+    ```
+
+### WebAssembly.Memory
+WebAssembly.Memory() 构造函数创建一个新的 Memory 对象。该对象的 buffer 属性是一个可调整大小的 ArrayBuffer ，其内存储的是 WebAssembly 实例 所访问内存的原始字节码。
+从 JavaScript 或 WebAssembly 中所创建的内存，可以由 JavaScript 或 WebAssembly 来访问及更改。
+
+[推荐这篇博客对Memory的具体解释，非常形象](https://www.zcfy.cc/article/memory-in-webassembly-and-why-it-s-safer-than-you-think-x2605-mozilla-hacks-8211-the-web-developer-blog)
+
+### WebAssembly.Table
+WebAssembly.Table() 构造函数根据给定的大小和元素类型创建一个Table对象。 
+这是一个包装了WebAssemble Table 的Javascript包装对象，具有类数组结构，存储了多个函数引用。在Javascript或者WebAssemble中创建Table 对象可以同时被Javascript或WebAssemble 访问和更改。
+[推荐这篇博客对Table的具体解释，非常形象](https://www.zcfy.cc/article/webassembly-table-imports-what-are-they-x2605-mozilla-hacks-8211-the-web-developer-blog)

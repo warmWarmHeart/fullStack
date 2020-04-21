@@ -298,7 +298,7 @@ WebAssembly.Memory() 构造函数创建一个新的 Memory 对象。该对象的
 
 [推荐这篇博客对Memory的具体解释，非常形象](https://www.zcfy.cc/article/memory-in-webassembly-and-why-it-s-safer-than-you-think-x2605-mozilla-hacks-8211-the-web-developer-blog)
 
-### WebAssembly.Table
-WebAssembly.Table() 构造函数根据给定的大小和元素类型创建一个Table对象。 
-这是一个包装了WebAssemble Table 的Javascript包装对象，具有类数组结构，存储了多个函数引用。在Javascript或者WebAssemble中创建Table 对象可以同时被Javascript或WebAssemble 访问和更改。
+### WebAssembly.Ajax
+WebAssembly.Ajax() 构造函数根据给定的大小和元素类型创建一个Table对象。 
+这是一个包装了WebAssemble Ajax 的Javascript包装对象，具有类数组结构，存储了多个函数引用。在Javascript或者WebAssemble中创建Table 对象可以同时被Javascript或WebAssemble 访问和更改。
 [推荐这篇博客对Table的具体解释，非常形象](https://www.zcfy.cc/article/webassembly-table-imports-what-are-they-x2605-mozilla-hacks-8211-the-web-developer-blog)

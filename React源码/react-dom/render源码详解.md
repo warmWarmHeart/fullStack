@@ -903,3 +903,44 @@ export function markRootUpdatedAtTime(
 
 * `ensureRootIsScheduled`函数 这里是真正的调度入口，内部包含了对`App`React组件下所有`chillren`相关Fiber的创建绑定，及各种Hooks相关`effect`的创建绑定以及`update`的创建绑定，也有对子组件下面render函数真实dom的创建绑定，还有各种生命周期的执行，最后渲染整个真实dom的过程
 [ensureRootIsScheduled的真正解读](./ensureRootIsScheduled解读.md)
+
+* `getNextRootExpirationTimeToWorkOn`会按照 `root.lastExpiredTime`、`root.firstPendingTime`、`root.lastPingedTime`或`root.nextKnownPendingLevel`(哪个大返回那个)的顺序返回一个`expirationTime`
+```javascript
+function getNextRootExpirationTimeToWorkOn(root: FiberRoot): ExpirationTime {
+  //考虑到可能被挂起的级别或可能已收到ping的级别，确定根应呈现的下一个到期时间
+  // Determines the next expiration time that the root should render, taking
+  // into account levels that may be suspended, or levels that may have
+  // received a ping.
+  const lastExpiredTime = root.lastExpiredTime;
+  // 一般情况下lastExpiredTime = NoWork
+  if (lastExpiredTime !== NoWork) {
+    return lastExpiredTime;
+  }
+  //“挂起”是指任何尚未提交的更新，包括是否已挂起。因此，“suspended”范围是一个子集。
+  // "Pending" refers to any update that hasn't committed yet, including if it
+  // suspended. The "suspended" range is therefore a subset.
+  const firstPendingTime = root.firstPendingTime;
+  // 判断root是否处于悬停时间，firstSuspendedTime >= firstPendingTime >= lastSuspendedTime
+  if (!isRootSuspendedAtTime(root, firstPendingTime)) {
+    // The highest priority pending time is not suspended. Let's work on that.
+    //最高优先级挂起时间未挂起。让我们继续执行它。
+    return firstPendingTime;
+  }
+  //如果第一个挂起时间已挂起，请检查是否存在我们知道的较低优先级挂起级别。或者检查我们是否收到ping。优先考虑哪个
+  // If the first pending time is suspended, check if there's a lower priority
+  // pending level that we know about. Or check if we received a ping. Work
+  // on whichever is higher priority.
+  const lastPingedTime = root.lastPingedTime;
+  const nextKnownPendingLevel = root.nextKnownPendingLevel; // //挂起范围之后的下一个已知过期时间
+  const nextLevel =
+    lastPingedTime > nextKnownPendingLevel
+      ? lastPingedTime
+      : nextKnownPendingLevel;
+  if (nextLevel <= Idle && firstPendingTime !== nextLevel) {
+    //不要在空闲/从不优先的情况下工作，除非所有其他事情都已完成。
+    // Don't work on Idle/Never priority unless everything else is committed.
+    return NoWork;
+  }
+  return nextLevel;
+}
+```

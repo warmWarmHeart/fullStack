@@ -26,13 +26,13 @@ function unstable_scheduleCallback(priorityLevel, callback, options) {
     } else {
       startTime = currentTime;
     }
-    // 延期时间，有特意传就用options里面的timeout 没有就根据优先等级设置默认延期时间
+    // 延期时间，有特意传就用options里面的timeout 没有就根据优先等级设置默认延期时间 reactDom调用render函数的时候 timeout接近 500ms
     timeout =
       typeof options.timeout === 'number'
         ? options.timeout
         : timeoutForPriorityLevel(priorityLevel);
   } else {
-    timeout = timeoutForPriorityLevel(priorityLevel);
+    timeout = timeoutForPriorityLevel(priorityLevel); // NORMAL_PRIORITY_TIMEOUT = 5000
     startTime = currentTime;
   }
 
@@ -83,10 +83,6 @@ function unstable_scheduleCallback(priorityLevel, callback, options) {
     newTask.sortIndex = expirationTime;
     // 将newTask按照从小到大的顺序放在taskQueue中
     push(taskQueue, newTask);
-    if (enableProfiling) {
-      markTaskStart(newTask, currentTime);
-      newTask.isQueued = true;
-    }
     // Schedule a host callback, if needed. If we're already performing work,
     // wait until the next time we yield.
     // 如果主回调调度执行状态是停滞状态，则开始调用requestHostCallback将flushWork通过setTimeout置于宏任务队列等待到点执行
@@ -168,6 +164,7 @@ const performWorkUntilDeadline = () => {
     } else {
       isMessageLoopRunning = false;
     }
+    //向浏览器让步会给它一个画画的机会，所以我们可以重置此
     // Yielding to the browser will give it a chance to paint, so we can
     // reset this.
     needsPaint = false;
@@ -219,23 +216,40 @@ function handleTimeout(currentTime) {
 }
 ```
 
-* flushWork
+### `flushWork`
+* 第一次执行`flushWork`的时候参数`hasTimeRemaining`是`true`，`initialTime`是通过`unstable_now`函数获取到的一个程序运行开始至今的时间差值
 ```javascript
 function flushWork(hasTimeRemaining, initialTime) {
-    // 主要就是调用workLoop循环执行taskQueue里的任务
+  //下次安排工作时，我们需要一个主机回调。
+  // We'll need a host callback the next time work is scheduled.
+  isHostCallbackScheduled = false;
+  // 暂时忽略
+  if (isHostTimeoutScheduled) {
+    //我们安排了一个暂停，但现在不需要了。取消它。
+    // We scheduled a timeout but it's no longer needed. Cancel it.
+    isHostTimeoutScheduled = false;
+    cancelHostTimeout();
+  }
+
+  isPerformingWork = true;
+  // 上一优先级
+  const previousPriorityLevel = currentPriorityLevel;
+  try {
     return workLoop(hasTimeRemaining, initialTime);
+  } finally {
+    currentTask = null;
+    currentPriorityLevel = previousPriorityLevel;
+    isPerformingWork = false;
+  }
 }
 ```
 * workLoop
 ```javascript
-/**
- * @param hasTimeRemaining 是否还有剩余时间
- * @param initialTime 初始时间
- *
- * */
 function workLoop(hasTimeRemaining, initialTime) {
   let currentTime = initialTime;
+  // 提前计时器
   advanceTimers(currentTime);
+  // 选第一个task 选expiration最小的task
   currentTask = peek(taskQueue);
   // 如果当前任务队列第一个任务不为空且为暂停调度，则进行循环
   while (
@@ -255,20 +269,19 @@ function workLoop(hasTimeRemaining, initialTime) {
     if (callback !== null) {
       currentTask.callback = null;// 去除callback后将当前任务callback置为null，方便下次清除此次执行过的任务
       currentPriorityLevel = currentTask.priorityLevel;
+      // currentTask.expirationTime <= currentTime的时候证明callback可以执行啦
       const didUserCallbackTimeout = currentTask.expirationTime <= currentTime; // 用户回调是否还处于延迟状态
+      // 忽略
       markTaskRun(currentTask, currentTime);
+      // 回调函数执行，可能会返回一个回调函数，比如useEffect的callback里面return一个函数这种情况
       const continuationCallback = callback(didUserCallbackTimeout);
       currentTime = getCurrentTime();
       if (typeof continuationCallback === 'function') {
         //如果回调函数返回了回调函数 则继续执行返回的回调函数
         currentTask.callback = continuationCallback;
-        markTaskYield(currentTask, currentTime);
       } else {
-        if (enableProfiling) {
-          markTaskCompleted(currentTask, currentTime);
-          currentTask.isQueued = false;
-        }
         // 清除执行过的当前任务
+        // 如果taskQueue只有一个task ，name就将执行过的task进行清除掉
         if (currentTask === peek(taskQueue)) {
           pop(taskQueue);
         }
@@ -282,12 +295,14 @@ function workLoop(hasTimeRemaining, initialTime) {
     currentTask = peek(taskQueue);
   }
   // Return whether there's additional work
+  //返回是否有其他工作
   if (currentTask !== null) {
     return true;
   } else {
     // 如果taskQueue队列所有任务执行完了，则取延迟执行任务队列的第一个任务，调用requestHostTimeout等待其开始执行时间到后执行自己
     let firstTimer = peek(timerQueue);
     if (firstTimer !== null) {
+      //requestHostTimeout 是将handleTimeout放在一个setTimeout中，setTimeout延迟事件是firstTimer.startTime - currentTime
       requestHostTimeout(handleTimeout, firstTimer.startTime - currentTime);
     }
     return false;
@@ -295,5 +310,80 @@ function workLoop(hasTimeRemaining, initialTime) {
 }
 ```
 
-## 任务的暂停与恢复、终止
-[参考此知乎文章](https://zhuanlan.zhihu.com/p/110161396)
+* `advanceTimers` 检查延迟任务队列`timerQueue`，将超过执行时间`startTime`的所有任务从`timerQueue`中取出来，放进执行任务队列`taskQueue`
+ > 执行任务队列`taskQueue`是按每一个`task`的`sortIndex`也就是`task.expirationTime`升序的方式从小到大排序的，每次都是取第一个执行，也就是取最早到期的任务执行
+```javascript
+// 检查不再延迟的任务并将其添加到队列taskQueue中
+function advanceTimers(currentTime) {
+  //检查不再延迟的任务并将其添加到队列中。
+  // 第一次进入 timerQueue是空的
+  // Check for tasks that are no longer delayed and add them to the queue.
+  let timer = peek(timerQueue);
+  while (timer !== null) {
+    // 将timerQueue队列中已经被取消掉的任务消除
+    if (timer.callback === null) {
+      // Timer was cancelled.
+      pop(timerQueue);
+    } else if (timer.startTime <= currentTime) {
+      // 当当前时间已经超过了timerQueue队列中的某一项任务规定开始时间，将该任务探出timerQueue队列,且将该任务的sortIndex设置为它的过期时间expirationTime，然后将其加入taskQueue队列
+      // Timer fired. Transfer to the task queue.
+      pop(timerQueue);
+      timer.sortIndex = timer.expirationTime;
+      push(taskQueue, timer);
+    } else {
+      // Remaining timers are pending.
+      return;
+    }
+    timer = peek(timerQueue);
+  }
+}
+```
+* `peek` 查看队列的第一个任务
+```javascript
+export function peek(heap: Heap): Node | null {
+  const first = heap[0];
+  return first === undefined ? null : first;
+}
+```
+* `push`函数 将一个任务`node`放入对应的任务队列`heap`(`timerQueue`和`taskQueue`中的一个)
+```javascript
+function push(heap: Heap, node: Node): void {
+  const index = heap.length;
+  heap.push(node);
+  siftUp(heap, node, index);
+}
+```
+* `siftUp`和`siftDown`函数 对任务队列进行排序（升序)
+```javascript
+// 将node按升序放在heap中
+function siftUp(heap, node, i) {
+  let index = i;
+  while (true) {
+    const parentIndex = (index - 1) >>> 1; // index -1 是node在heap中的下标，index -1 >>> 1就是node在heap中preNode的下标
+    const parent = heap[parentIndex];
+    // 对比node在和它前一个node的大小，如果前一个node的expirationTime更大或者id更大，就互换两个node  将大的放在后面小的放前面
+    if (parent !== undefined && compare(parent, node) > 0) {
+      //父母是更大的。互换头寸。
+      // The parent is larger. Swap positions.
+      heap[parentIndex] = node;
+      heap[index] = parent;
+      index = parentIndex;
+    } else {
+      //父母比我小。Exit。
+      // The parent is smaller. Exit.
+      return;
+    }
+  }
+}
+```
+
+* `compare`是对比两个任务的优先级 a.sortIndex越小，任务优先级越高
+```javascript
+function compare(a, b) {
+  //首先比较排序索引，然后比较任务id。
+  // Compare sort index first, then task id.
+  // 对比两个task的expirationTime
+  const diff = a.sortIndex - b.sortIndex;
+  return diff !== 0 ? diff : a.id - b.id;
+}
+```

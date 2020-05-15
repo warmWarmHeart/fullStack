@@ -14,6 +14,7 @@
 ```
 ## `reconcileChildren`源码
 > `reconcileChildren`源码是在执行`renderRootSync`的时候调用`updateHostRoot`函数时候调用的，`renderRootSync`源码和`updateHostRoot`源码[参考文档](./renderRootSync解析.md)
+* 通过`reconcileChildFibers`为`workInProgress`创建一个子`Fiber`，指向其`child`属性
 ```javascript
 /**
 * 这是updateHostRoot调用的时候的参数
@@ -54,6 +55,7 @@ export function reconcileChildren(
 
     // If we had any progressed work already, that is invalid at this point so
     // let's throw it out.
+    // 通过reconcileChildFibers为workInProgress创建一个子Fiber，指向其child属性
     workInProgress.child = reconcileChildFibers(
       workInProgress,
       current.child, // 第一次render的时候current是初始值 null
@@ -277,7 +279,7 @@ function reconcileSingleElement(
   }
 ```
 
-### `createFiberFromElement`函数
+#### `createFiberFromElement`函数
 * `createFiberFromElement`函数逻辑很简单 创建了一个`fiber`，然后返回该`fiber`对象， `fiber`对象[参考文档](../Fiber/Fiber对象解读.md)
 
 * `reconcileSingleElement` 函数参数
@@ -322,22 +324,26 @@ function createFiberFromElement(
 * 形参
     - type：function App () {...}
     - pendingProps： { children: null }
+* 根据传进来的`type`先生成一个fiber的tag
+* 创建一个fiber return出去
 ```javascript
 function createFiberFromTypeAndProps(
   type: any, // function App () {...}
   key: null | string,
-  pendingProps: any,
-  owner: null | Fiber,
+  pendingProps: any, // { children: null }
+  owner: null | Fiber, // null
   mode: TypeOfMode, // 当前版本HostRootFiber的mode为NoMode
   expirationTime: ExpirationTime,
 ): Fiber {
   let fiber;
-
+    // Before we know whether it is function or class //在我们知道它是函数还是类之前
   let fiberTag = IndeterminateComponent;
   // The resolved type is set if we know what the final type will be. I.e. it's not lazy.
   //如果我们知道最终类型将是什么，则设置解析类型。一、 它不懒。
   let resolvedType = type;
   if (typeof type === 'function') {
+    // Component.prototype.isReactComponent = {};
+    // 如果是类组件，继承自Component的属性isReactComponent
     if (shouldConstruct(type)) {
       fiberTag = ClassComponent;
     } else {
@@ -425,14 +431,77 @@ function createFiberFromTypeAndProps(
 
   fiber = createFiber(fiberTag, pendingProps, key, mode);
   fiber.elementType = type;
-  fiber.type = resolvedType;
+  fiber.type = resolvedType; // 如果类型是REACT_LAZY_TYPE则会 设置为null
   fiber.expirationTime = expirationTime;
 
   return fiber;
 }
 ```
 
-## `placeSingleChild`函数
+
+#### `coerceRef`函数
+
+```javascript
+// 当 ref 定义为 string 时，需要 React 追踪当前正在渲染的组件，在 reconciliation 阶段，React Element 创建和更新的过程中，ref 会被封装为一个闭包函数，
+// 等待 commit 阶段被执行，这会对 React 的性能产生一些影响。
+// 当使用 render callback 模式时，使用 string ref 会造成 ref 挂载位置产生歧义。
+// string ref 无法被组合，例如一个第三方库的父组件已经给子组件传递了 ref，那么我们就无法再在子组件上添加 ref 了，而 callback ref 可完美解决此问题。
+// 对于静态类型较不友好，当使用 string ref 时，必须显式声明 refs 的类型，无法完成自动推导。
+// 编译器无法将 string ref 与其 refs 上对应的属性进行混淆，而使用 callback ref，可被混淆
+// 强制引用
+// 检查ref是否合法转换string ref
+function coerceRef(
+  returnFiber: Fiber,
+  current: Fiber | null,
+  element: ReactElement,
+) {
+  let mixedRef = element.ref;
+  if (
+    mixedRef !== null &&
+    typeof mixedRef !== 'function' &&
+    typeof mixedRef !== 'object'
+  ) {
+    if (element._owner) {
+      const owner: ?Fiber = (element._owner: any);
+      let inst;
+     
+      const stringRef = '' + mixedRef;
+      //检查前一个字符串引用是否与新字符串引用匹配
+      // Check if previous string ref matches new string ref
+      if (
+        current !== null &&
+        current.ref !== null &&
+        typeof current.ref === 'function' &&
+        current.ref._stringRef === stringRef
+      ) {
+        return current.ref;
+      }
+      const ref = function(value) {
+        let refs = inst.refs;
+        if (refs === emptyRefsObject) {
+          //这是一个延迟池冻结对象，因此需要初始化。
+          // This is a lazy pooled frozen object, so we need to initialize.
+          refs = inst.refs = {};
+        }
+        if (value === null) {
+          delete refs[stringRef];
+        } else {
+          refs[stringRef] = value;
+        }
+      };
+      ref._stringRef = stringRef;
+      return ref;
+    } else {
+     
+    }
+  }
+  return mixedRef;
+}
+```
+
+### `placeSingleChild`函数
+
+* `placeSingleChild`函数的形参是一个新`Fiber`,`placeSingleChild`函数就是加工下该`Fiber`,为其effectTag 赋值`Placement`
 
 * 源码
 ```javascript
@@ -440,6 +509,7 @@ function placeSingleChild(newFiber: Fiber): Fiber {
     //对于独生子女来说，这更简单。我们只需要做一个插入新孩子的位置。
     // This is simpler for the single child case. We only need to do a
     // placement for inserting new children.
+    // shouldTrackSideEffects 参数 等于 true，newFiber是新创建出来的fiber 所以alternate属性等于null，因此会进行下面赋值
     if (shouldTrackSideEffects && newFiber.alternate === null) {
       newFiber.effectTag = Placement;
     }

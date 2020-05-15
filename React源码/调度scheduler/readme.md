@@ -271,8 +271,6 @@ function workLoop(hasTimeRemaining, initialTime) {
       currentPriorityLevel = currentTask.priorityLevel;
       // currentTask.expirationTime <= currentTime的时候证明callback可以执行啦
       const didUserCallbackTimeout = currentTask.expirationTime <= currentTime; // 用户回调是否还处于延迟状态
-      // 忽略
-      markTaskRun(currentTask, currentTime);
       // 回调函数执行，可能会返回一个回调函数，比如useEffect的callback里面return一个函数这种情况
       const continuationCallback = callback(didUserCallbackTimeout);
       currentTime = getCurrentTime();
@@ -385,5 +383,36 @@ function compare(a, b) {
   // 对比两个task的expirationTime
   const diff = a.sortIndex - b.sortIndex;
   return diff !== 0 ? diff : a.id - b.id;
+}
+```
+
+## `runWithPriority`函数
+* 在 `eventHandler`执行之前初始化 `currentPriorityLevel`为`NormalPriority`
+* 执行`eventHandler`
+* 执行完`eventHandler`后再恢复`currentPriorityLevel`为以前的值
+```javascript
+function unstable_runWithPriority(priorityLevel, eventHandler) {
+  // 默认priorityLevel设置为NormalPriority
+  switch (priorityLevel) {
+    case ImmediatePriority:
+    case UserBlockingPriority:
+    case NormalPriority:
+    case LowPriority:
+    case IdlePriority:
+      break;
+    default:
+      priorityLevel = NormalPriority;
+  }
+
+  // currentPriorityLevel 默认为NormalPriority
+  var previousPriorityLevel = currentPriorityLevel; // 将外侧任务的优先级保存为currentPriorityLevel，方便unstable_scheduleCallback调用的时候对优先级的使用
+  currentPriorityLevel = priorityLevel;
+
+  try {
+    return eventHandler();
+  } finally {
+    // 还原currentPriorityLevel 默认为NormalPriority
+    currentPriorityLevel = previousPriorityLevel;
+  }
 }
 ```

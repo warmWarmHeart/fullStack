@@ -24,7 +24,7 @@ Component.prototype.forceUpdate = function(callback) {
 };
 ```
 
-* `enqueueSetState`主要是获取程序运行开始到当前时间差，并且利用此差值计算出一个过期该任务过期时间，最后生成一个用来标记此任务的`update`对象，然后将它绑定到实例`fiber`上的`UpdateQueue.share.pending`
+* `enqueueSetState`主要是获取程序运行开始到当前时间差，并且利用此差值计算出一个过期该任务过期时间，最后生成一个用来标记此任务的`update`对象，然后将它绑定到实例`fiber`上的`UpdateQueue.shared.pending`
 最后开始执行`scheduleUpdateOnFiber()`。`scheduleUpdateOnFiber()`是`react`很重要的一个调度Fiber更新函数,后面会详细讲解
 > `enqueueReplaceState`和`enqueueForceUpdate`跟`enqueueSetState`的步骤基本相同，只是将创建的`update`对象的`tag`属性分别设置为`ReplaceState`和`ForceUpdate`
 ```javascript

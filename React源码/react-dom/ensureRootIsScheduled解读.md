@@ -198,15 +198,9 @@ function performConcurrentWorkOnRoot(root, didTimeout) {
     return null;
   }
   const originalCallbackNode = root.callbackNode;
-  invariant(
-    (executionContext & (RenderContext | CommitContext)) === NoContext,
-    'Should not already be working.',
-  );
-
   flushPassiveEffects();
 
   let exitStatus = renderRootConcurrent(root, expirationTime);
-
   // RootIncomplete会在prepareFreshStack函数调用的时候设置workInProgressRootExitStatus = RootIncomplete
   if (exitStatus !== RootIncomplete) {
     if (exitStatus === RootErrored) {
@@ -263,6 +257,96 @@ export function markRootExpiredAtTime(
 ```
 
 ## `performSyncWorkOnRoot`函数
+```javascript
+function performSyncWorkOnRoot(root) {
+  // 刷新被动效果 flushPassiveEffects调用runWithPriority(priorityLevel, flushPassiveEffectsImpl);flushPassiveEffectsImpl又调用flushSyncCallbackQueue
+  //如果根目录或过期时间已更改，请丢弃现有堆栈并准备新堆栈。否则我们将继续我们离开的地方。
+  // pendingPassiveEffectsRenderPriority === NoPriority 90;的情况下不执行
+  // 第一次render的时候不会执行
+  flushPassiveEffects();
+
+  // 上次root的过期时间
+  // root.lastExpiredTime是在performSyncWorkOnRoot执行的上一个函数performConcurrentWorkOnRoot执行的时候设置的，所以这里是有值得
+  const lastExpiredTime = root.lastExpiredTime;
+
+  let expirationTime;
+  // 第一次render的时候 会通过ensureRootIsScheduled调用scheduleSyncCallback的过程中生成root.lastExpiredTime
+  if (lastExpiredTime !== NoWork) {
+    // 这个根上有过期的工作。检查是否有可重用的部分树 workInProgressRoot 指接下来要更新的节点
+    // There's expired work on this root. Check if we have a partial tree
+    // that we can reuse.
+    
+    // workInProgressRoot是在prepareFreshStack准备新栈函数中设置的所以这里的if逻辑也不会走
+    if (
+      root === workInProgressRoot &&
+      renderExpirationTime >= lastExpiredTime
+    ) {
+      // 有一个部分树的优先级等于或大于过期级别。在渲染剩余的过期作品之前完成渲染
+      // There's a partial tree with equal or greater than priority than the
+      // expired level. Finish rendering it before rendering the rest of the
+      // expired work.
+      expirationTime = renderExpirationTime;
+    } else {
+      // 开始一个新树
+      // Start a fresh tree.
+      expirationTime = lastExpiredTime;
+    }
+  } else {
+    //这里没有过期的work。这必须是一个新的同步render。
+    // There's no expired work. This must be a new, synchronous render.
+    expirationTime = Sync;
+  }
+
+  // 前面设置了 expirationTime = lastExpiredTime;
+  // Fiber 树的更新流程分为 render 阶段与 commit 阶段，render 阶段的纯粹意味着可以被拆分，在 Sync 模式下，render 阶段一次性执行完成，而在 Concurrent 模式下，render 阶段可以被拆解，每个时间片内分别运行一部分，直至完成，commit 模式由于带有 DOM 更新，不可能 DOM 变更到一半中断，因此必须一次性执行完成。
+  // exitStatus 退出状态， 值为RootIncomplete
+  let exitStatus = renderRootSync(root, expirationTime);
+
+  // 这部分可以暂时忽略
+  if (root.tag !== LegacyRoot && exitStatus === RootErrored) {
+    //如果出现错误，请再次尝试渲染。我们将同步呈现以阻止并发数据突变，并在空闲（或更低）时呈现，以便包含所有挂起的更新。
+    // 如果在第二次尝试之后仍然失败，我们将放弃并提交结果树。
+    // If something threw an error, try rendering one more time. We'll
+    // render synchronously to block concurrent data mutations, and we'll
+    // render at Idle (or lower) so that all pending updates are included.
+    // If it still fails after the second attempt, we'll give up and commit
+    // the resulting tree.
+    expirationTime = expirationTime > Idle ? Idle : expirationTime;
+    // 第二次尝试renderRoot
+    exitStatus = renderRootSync(root, expirationTime);
+  }
+
+  // root遇到致命错误
+  // 这部分可以暂时忽略
+  if (exitStatus === RootFatalErrored) {
+    const fatalError = workInProgressRootFatalError;
+    // 准备新堆栈，初始化上下文、workInProgress
+    prepareFreshStack(root, expirationTime);
+    // 标记根悬停在执行该任务的时候。交给Suspend捕捉错误
+    markRootSuspendedAtTime(root, expirationTime);
+    // 确保根节点被调度执行
+    ensureRootIsScheduled(root); // 内部重新执行scheduleSyncCallback(performSyncWorkOnRoot.bind(null, root))
+    throw fatalError;
+  }
+  //我们现在有一个连续的树。因为这是同步呈现，所以即使有挂起的东西，我们也会提交它。
+  // We now have a consistent tree. Because this is a sync render, we
+  // will commit it even if something suspended.
+  root.finishedWork = (root.current.alternate: any);
+  root.finishedExpirationTime = expirationTime;
+  // 所谓提交阶段，就是实际执行一些周期函数、Dom 操作的阶段。
+  // 提交根节点
+  commitRoot(root);
+  //在退出之前，请确保为下一个pending的级别安排了回调。
+  // Before exiting, make sure there's a callback scheduled for the next
+  // pending level.
+  ensureRootIsScheduled(root);
+
+  return null;
+}
+```
+
+* `renderRootSync`函数[参考文档](./renderRootSync解析.md)
+* `commitRoot`函数[参考文档](./commitRoot解析.md)
 
 * `performSyncWorkOnRoot`函数是在 `scheduleSyncCallback`中调用的
 
@@ -276,6 +360,8 @@ export function markRootExpiredAtTime(
 * 为root.callbackNode变量赋值空对象`{}`
 ```javascript
 export function scheduleSyncCallback(callback: SchedulerCallback) {
+    // 执行到这里的时候 callback = performSyncWorkOnRoot
+    
   //将此回调推入内部队列。如果有东西调用“flushSyncCallbackQueue”，我们将在下一个时间点或更早的时间刷新它们
   // Push this callback into an internal queue. We'll flush these either in
   // the next tick, or earlier if something calls `flushSyncCallbackQueue`.
@@ -305,4 +391,47 @@ export function scheduleSyncCallback(callback: SchedulerCallback) {
 }
 ```
 
-* `Scheduler_scheduleCallback`函数在上面调用的时候 会调用
+* `Scheduler_scheduleCallback`函数在上面调用的时候 会调用 `flushSyncCallbackQueueImpl`函数
+
+### `flushSyncCallbackQueueImpl`函数 会执行 放置于 `syncQueue`队列内的所有任务 也就是`[performSyncWorkOnRoot]`
+
+```javascript
+function flushSyncCallbackQueueImpl() {
+  if (!isFlushingSyncQueue && syncQueue !== null) {
+    // Prevent re-entrancy.
+    // 阻止再次执行
+    isFlushingSyncQueue = true;
+    let i = 0;
+    try {
+      const isSync = true;
+      const queue = syncQueue;
+      // 里面会再次执行Scheduler_scheduleCallback，会将syncQueue每一项同步任务依次执行放在任务队列中执行
+      runWithPriority(ImmediatePriority, () => {
+        for (; i < queue.length; i++) {
+          let callback = queue[i];
+          do {
+            callback = callback(isSync);
+          } while (callback !== null);
+        }
+      });
+      syncQueue = null;
+    } catch (error) {
+      // If something throws, leave the remaining callbacks on the queue.
+      //如果有东西抛出，则将剩余的回调留在队列中。
+      if (syncQueue !== null) {
+        syncQueue = syncQueue.slice(i + 1);
+      }
+      // Resume flushing in the next tick
+      // 执行调度事件
+      Scheduler_scheduleCallback(
+        Scheduler_ImmediatePriority,
+        flushSyncCallbackQueue,
+      );
+      throw error;
+    } finally {
+      isFlushingSyncQueue = false;
+    }
+  }
+}
+```
+

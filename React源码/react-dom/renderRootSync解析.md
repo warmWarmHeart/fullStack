@@ -656,7 +656,7 @@ function beginWork(
 }
 
 ```
-### mountComponent 绑定组件
+### mountHostRootComponent 绑定根组件
 
 [参考文档](mountHostRootComponent阶段解析.md)
 
@@ -819,3 +819,7 @@ function completeUnitOfWork(unitOfWork: Fiber): Fiber | null {
   return null;
 }
 ```
+
+### mountClassComponent 绑定类组件
+[参考文档](mountClassComponent阶段解析.md)
+

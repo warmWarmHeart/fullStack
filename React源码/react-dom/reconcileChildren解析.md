@@ -320,6 +320,7 @@ function createFiberFromElement(
   return fiber;
 }
 ```
+
 #### `createFiberFromTypeAndProps`函数
 * 形参
     - type：function App () {...}

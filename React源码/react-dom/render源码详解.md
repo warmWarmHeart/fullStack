@@ -49,6 +49,7 @@ ReactDom.render(<App />, document.getElementById('app'));
 ## 步骤1 `<App />`
 * `<App />`是`jsx`的一种写法，实际上相当于用`react`的`createElement`生成了一个虚拟`dom`（一个用来描述 想要渲染的真实 Dom的一个对象）
 
+### createElement
 ```javascript
 export function createElement(type, config, children) {
   let propName;
@@ -108,6 +109,7 @@ export function createElement(type, config, children) {
   );
 }
 ```
+### ReactElement
 ```javascript
 const ReactElement = function(type, key, ref, self, source, owner, props) {
   const element = {
@@ -160,6 +162,7 @@ export function render(
 }
 ```
 
+### `render`
 * `render`内部会执行 `legacyRenderSubtreeIntoContainer`函数，生成一个`root`并生成一个`fiber`对象绑定到`root`上，`root`又绑定到`container._reactRootContainer`属性上
 ```javascript
 function legacyRenderSubtreeIntoContainer(
@@ -205,7 +208,8 @@ function legacyRenderSubtreeIntoContainer(
 }
 ```
 
-### 创建 `FiberRoot`和`HostRootFiber`,且将`FiberRoot`的`current`指向`HostRootFiber`，而`HostRootFiber`的`stateNode`又指回`FiberRoot`
+### legacyCreateRootFromDOMContainer
+* 创建 `FiberRoot`和`HostRootFiber`,且将`FiberRoot`的`current`指向`HostRootFiber`，而`HostRootFiber`的`stateNode`又指回`FiberRoot`
 
 * 初始化的时候 `root` 还是空值，需要调用`legacyCreateRootFromDOMContainer`创建一个`root`出来
 ```javascript
@@ -239,7 +243,8 @@ function legacyCreateRootFromDOMContainer(
 }
 ```
 
-* `createLegacyRoot`会调用`ReactDOMBlockingRoot`函数，`ReactDOMBlockingRoot`函数又会调用`createRootImpl`, 接下来看`createRootImpl`函数
+#### `createLegacyRoot`
+* 会调用`ReactDOMBlockingRoot`函数，`ReactDOMBlockingRoot`函数又会调用`createRootImpl`, 接下来看`createRootImpl`函数
 ```javascript
   // `createLegacyRoot`函数return new ReactDOMBlockingRoot(container, LegacyRoot, options);
   // `ReactDOMBlockingRoot`类设置root = container._reactRootContainer = this._internalRoot = createRootImpl(container, tag, options);
@@ -255,7 +260,8 @@ function legacyCreateRootFromDOMContainer(
     }
 ```
 
-* `createContainer`调用了`createFiberRoot`, 生成一个
+##### `createContainer`
+* `createContainer`调用了`createFiberRoot`, 生成一个`FiberRoot`对象
 ```javascript
     // return createFiberRoot(containerInfo, tag, hydrate, hydrationCallbacks);
 export function createFiberRoot(
@@ -278,8 +284,8 @@ export function createFiberRoot(
   return root;
 }
 ```
-
-* `FiberRootNode` 生成一个FiberRoot对象
+###### `FiberRootNode`
+* 生成一个FiberRoot对象
 ```javascript
 function FiberRootNode(containerInfo, tag, hydrate) {
   // 标记不同的组件类型
@@ -310,7 +316,8 @@ function FiberRootNode(containerInfo, tag, hydrate) {
 }
 ```
 
-* `createHostRootFiber` 创建一个`tag`为 `HostRoot`、`mode`为`NoMode`的Fiber对象
+######`createHostRootFiber`
+ * 创建一个`tag`为 `HostRoot`、`mode`为`NoMode`的Fiber对象
 ```javascript
 export function createHostRootFiber(tag: RootTag): Fiber {
   let mode;
@@ -325,7 +332,8 @@ export function createHostRootFiber(tag: RootTag): Fiber {
 }
 ```
 
-* `createFiber` 创建一个`Fiber`对象
+###### `createFiber`
+ * 创建一个`Fiber`对象
 ```javascript
 function FiberNode(
   tag: WorkTag,
@@ -363,7 +371,8 @@ function FiberNode(
 }
 ```
 
-* `initializeUpdateQueue`给 `fiber` 增加一个 `UpdateQueue`, 该属性上会记录该fiber对应的组件的所有副作用和更改
+##### `initializeUpdateQueue`
+* 给 `fiber` 增加一个 `UpdateQueue`, 该属性上会记录该fiber对应的组件的所有副作用和更改
 ```javascript
 function initializeUpdateQueue<State>(fiber: Fiber): void {
   const queue: UpdateQueue<State> = {
@@ -379,9 +388,9 @@ function initializeUpdateQueue<State>(fiber: Fiber): void {
 }
 ```
 
-### 执行 `unbatchedUpdates`函数 标记一下`executionContext`执行上下文为`LegacyUnbatchedContext`，也就是非批量上下文的意思（每一个阶段的`executionContext`值都不一样）
-紧接着执行传进来的`fn`回调函数，在`render`中`fn`就是`updateContainer`函数，执行完`updateContainer`后会根据`executionContext`是否等于`NoContext`,如果相等则执行`flushSyncCallbackQueue`
-
+### 执行 `unbatchedUpdates`函数
+* 标记一下`executionContext`执行上下文为`LegacyUnbatchedContext`，也就是非批量上下文的意思（每一个阶段的`executionContext`值都不一样）
+* 紧接着执行传进来的`fn`回调函数，在`render`中`fn`就是`updateContainer`函数，执行完`updateContainer`后会根据`executionContext`是否等于`NoContext`,如果相等则执行`flushSyncCallbackQueue`
 ```javascript
 // 非批量更新
 export function unbatchedUpdates<A, R>(fn: (a: A) => R, a: A): R {
@@ -414,6 +423,7 @@ export function unbatchedUpdates<A, R>(fn: (a: A) => R, a: A): R {
 ```
 
 ### 重头戏 `updateContainer`
+
 ```javascript
 export function updateContainer(
   element: ReactNodeList,
@@ -490,7 +500,8 @@ export function updateContainer(
 }
 ```
 
-* `requestCurrentTimeForUpdate` 计算 `currentTime`
+#### `requestCurrentTimeForUpdate`
+ * 计算 `currentTime`
 ```javascript
 export function requestCurrentTimeForUpdate() {
   // executionContext 第一次的时候是LegacyUnbatchedContext，所以render的时候不会走这里
@@ -514,7 +525,7 @@ export function requestCurrentTimeForUpdate() {
 }
 ```
 
-* `msToExpirationTime` 
+#### `msToExpirationTime` 
 ```javascript
 //到期时间单位为10ms。
 // 1 unit of expiration time represents 10ms.
@@ -527,13 +538,15 @@ export function msToExpirationTime(ms: number): ExpirationTime {
 }
 ```
 
-* `now` 计算程序运行开始到需要获取一个时间戳的中间查值
+##### `now`
+* 计算程序运行开始到需要获取一个时间戳的中间查值
 ```javascript
 //initialTimeMs 是在程序运行之初用Scheduler_now()获取到的一个时间差 initialTimeMs小于10秒，就取Scheduler_now(), 大于10秒就取当前时间到initialTimeMs设置那一刻中间的时间差
 export const now = initialTimeMs < 10000 ? Scheduler_now : () => Scheduler_now() - initialTimeMs;
 ```
 
-* `getCurrentTime` 也就是上面的 `Scheduler_now` 获取程序运行开始到执行`Scheduler_now`的中间的时间差
+##### `getCurrentTime`
+* 也就是上面的 `Scheduler_now` 获取程序运行开始到执行`Scheduler_now`的中间的时间差
 ```javascript
 if (
     typeof performance === 'object' &&
@@ -620,7 +633,8 @@ export function computeExpirationForFiber(
 }
 ```
 
-* `computeAsyncExpiration` 算出一个比`currnetTime`大概小500毫秒的数值
+##### `computeAsyncExpiration`
+* 算出一个比`currnetTime`大概小500毫秒的数值
 ```javascript
 function computeAsyncExpiration(
   currentTime: ExpirationTime,
@@ -659,7 +673,8 @@ function ceiling(num: number, precision: number): number {
 }
 ```
 
-* `createUpdate`函数创建一个`Update`对象。`Update`对象就是用来描述react组件的各种更新的对象，比如创建dom后的安置、取代旧dom、移除等更新都会绑定一个`Update`对象
+##### `createUpdate`函数
+* 创建一个`Update`对象。`Update`对象就是用来描述react组件的各种更新的对象，比如创建dom后的安置、取代旧dom、移除等更新都会绑定一个`Update`对象
 ```javascript
 // 创建 update 来标记 react 需要更新的点
 export function createUpdate(
@@ -680,7 +695,8 @@ export function createUpdate(
 }
 ```
 
-* `enqueueUpdate`函数用来将新创建的`update`对象放到Fiber的`UpdateQueue`对象的`share.pending`上，此处的Fiber为`HostRootFiber`
+### `enqueueUpdate`
+* 函数用来将新创建的`update`对象放到Fiber的`UpdateQueue`对象的`share.pending`上，此处的Fiber为`HostRootFiber`
 ```javascript
 export function enqueueUpdate<State>(fiber: Fiber, update: Update<State>) {
   const updateQueue = fiber.updateQueue; // 节点创建的 update 对象 queue
@@ -709,238 +725,15 @@ export function enqueueUpdate<State>(fiber: Fiber, update: Update<State>) {
 }
 ```
 
-* `scheduleUpdateOnFiber`函数通过调度`Scheduler`更新fiber，此处是更新创建好的`HostRootFiber`。调度相关文档可以[参考这里](../调度scheduler/readme.md)
+### `scheduleUpdateOnFiber`函数
+* [参考文档](scheduleUpdateOnFiber解析.md)
 
-```javascript
-export function scheduleUpdateOnFiber(
-  fiber: Fiber,
-  expirationTime: ExpirationTime,
-) {
-  // 检查嵌套更新
-  //使用这些来防止嵌套更新的无限循环
-  // nested Update Count嵌套更新计数最大为50
-  // 如果超过50具有嵌套更新的根目录rootWithNestedUpdates置为null，nested Update Count置为0
-  // 对比nestedUpdateCount、NESTED_UPDATE_LIMIT这两个参数，nestedUpdateCount会在performSyncWorkOnRoot执行flushPassiveEffects的时候加一或置零（rootWithPendingPassiveEffects === null ）
-  checkForNestedUpdates();
-  // 获取到 FiberRoot
-  // 找到当前Fiber的 root
-  // 给更新节点的父节点链上的每个节点的expirationTime设置为这个update的expirationTime，除非他本身时间要小于expirationTime
-  // 给更新节点的父节点链上的每个节点的childExpirationTime设置为这个update的expirationTime，除非他本身时间要小于expirationTime
-  // 最终返回 root 节点的Fiber对象
-  // 因为 React 的更新需要从FiberRoot开始，所以会执行一次向上遍历找到FiberRoot，
-  // 而向上遍历则正好是一步步找到创建更新的节点的父节点的过程，这时候 React 就会对每一个该节点的父节点链上的节点设置childExpirationTime，
-  // 因为这个更新是他们的子孙节点造成的
-  // 在我们向下更新整棵Fiber树的时候，每个节点都会执行对应的update方法，
-  // 在这个方法里面就会使用节点本身的expirationTime和childExpirationTime来判断他是否可以直接跳过，不更新子树。expirationTime代表他本身是否有更新，
-  // 如果他本身有更新，那么他的更新可能会影响子树；childExpirationTime表示他的子树是否产生了更新；如果两个都没有，那么子树是不需要更新的。
-  // 1 同一个节点产生的连续两次更新，最红在父节点上只会体现一次childExpirationTime
-  // 2 不同子树产生的更新，最终体现在跟节点上的是优先级最高的那个更新:
-  // 设置root.firstPendingTime = expirationTime
-  const root = markUpdateTimeFromFiberToRoot(fiber, expirationTime);
-  if (root === null) {
-    // 如果找不到root报警告 警告在DEV中更新未安装的fiber
-    // 无法对未装载的组件执行反应状态更新。这是一个no操作，但它表示应用程序内存泄漏。若要修复，请取消useffect清理函数中的所有订阅和异步任务
-    warnAboutUpdateOnUnmountedFiberInDEV(fiber);
-    return;
-  }
-  //优先权作为那个函数和这个函数的参数。
-  // 会返回 NormalPriority; // 97
-  const priorityLevel = getCurrentPriorityLevel();
-  // 如果当前是同步更新的
-  if (expirationTime === Sync) {
-    // 如果不是批量更新或者  不是render或commit阶段，则直接同步调用任务
-    if (
-      // unbatchedUpdates 函数执行的时候 executionContext 会设置为 LegacyUnbatchedContext
-      // 如果正在执行的上下文是unbatchUpdate不是批量更新
-      // Check if we're inside unbatchedUpdates
-      (executionContext & LegacyUnbatchedContext) !== NoContext &&
-      // Check if we're not already rendering
-      // 检查不是render或者commit阶段
-      (executionContext & (RenderContext | CommitContext)) === NoContext
-    ) {
-      //这是一个遗留的边缘案例。ReactDOM.render-ed的初始装载
-      //batchedUpdates的根目录应该是同步的，但是布局更新应推迟到批处理结束。
-      // 在根目录上执行同步工作 这是不通过调度程序的同步任务的入口点
-      // 内部会执行 1 flushPassiveEffects 2 renderRootSync 3 commitRoot 4 ensureRootIsScheduled
-      performSyncWorkOnRoot(root);
-    } else {
-      ensureRootIsScheduled(root);
-      if (executionContext === NoContext) {
-        //现在刷新同步工作，除非我们已经在工作或在批处理中。
-        // 这是在scheduleUpdateOnFiber而不是scheduleCallbackForFiber内部故意设置的，以保留在不立即刷新回调的情况下调度回调的功能。
-        // 我们只对用户发起的更新执行此操作，以保留传统模式的历史行为。
-        // Flush the synchronous work now, unless we're already working or inside
-        // a batch. This is intentionally inside scheduleUpdateOnFiber instead of
-        // scheduleCallbackForFiber to preserve the ability to schedule a callback
-        // without immediately flushing it. We only do this for user-initiated
-        // updates, to preserve historical behavior of legacy mode.
-        flushSyncCallbackQueue();
-      }
-    }
-  } else {
-    // 这个是真正任务调度的入口
-    // 每一个root都有一个唯一的调度任务，如果已经存在，我们要确保到期时间与下一级别任务的相同，每一次更新都会调用这个方法
-    //使用此函数可为根目录安排任务。每个根目录下只有一个任务；如果已经计划了任务，我们将检查以确保现有任务的过期时间与根目录下一个工作级别的过期时间相同。
-    // 此函数在每次更新时调用，并在退出任务之前调用。
-    ensureRootIsScheduled(root);
-  }
+* 通过调度`Scheduler`更新fiber，此处是更新创建好的`HostRootFiber`。
+调度相关文档可以[参考这里](../调度scheduler/readme.md)
 
-  if (
-    (executionContext & DiscreteEventContext) !== NoContext &&
-    (priorityLevel === UserBlockingPriority ||
-      priorityLevel === ImmediatePriority)
-  ) {
-      // 忽略暂时不看
-    ...
-  }
-}
-```
 
-* `markUpdateTimeFromFiberToRoot`函数
-```javascript
-function markUpdateTimeFromFiberToRoot(fiber, expirationTime) {
-  // 跟新fiber的过期时间 render App 的时候会将expirationTime设置为HostRootFiber.expirationTime
-  if (fiber.expirationTime < expirationTime) {
-    fiber.expirationTime = expirationTime;
-  }
-  // fiber拥有一个辅助属性alternate，
-  // fiber对象是新时代的虚拟DOM，它是用来承载着组件实例与真实DOM等重要数据。这些重要数据在更新过程是不需要重新生成的。但React希望能像git那样按分支开发，遇错回滚。
-  // alternate就是这个备胎
-  // 下面是将备胎的过期时间更新
-  let alternate = fiber.alternate;
-  if (alternate !== null && alternate.expirationTime < expirationTime) {
-    alternate.expirationTime = expirationTime;
-  }
-  //将父路径移动到根目录并更新子到期时间。
-  // 父级 Fiber， HostRootFiber的return属性是null
-  let node = fiber.return;
-  let root = null;
-  if (node === null && fiber.tag === HostRoot) {
-    // stateNode组件实例
-    root = fiber.stateNode;
-  } else {
-    while (node !== null) {
-      // 更新当前Fiber所有父节点祖父节点和他们的备胎alternate上的childExpirationTime，
-      // 因为当当前fiber的过期时间更新的时候证明当前fiber绑定的React组件需要更新，name它的父级组件也需要知道它下面有子组件要更新的消息
-      alternate = node.alternate;
-      // 设置父级Fiber的过期时间，以及挂载在父Fiber上的它下面的children的过期时间childExpirationTime，当一个Fiber的childExpirationTime有值的时候证明它的子元素可能需要更新
-      if (node.childExpirationTime < expirationTime) {
-        node.childExpirationTime = expirationTime;
-        if (
-          alternate !== null &&
-          alternate.childExpirationTime < expirationTime
-        ) {
-          alternate.childExpirationTime = expirationTime;
-        }
-      } else if (
-        alternate !== null &&
-        alternate.childExpirationTime < expirationTime
-      ) {
-        alternate.childExpirationTime = expirationTime;
-      }
-      if (node.return === null && node.tag === HostRoot) {
-        root = node.stateNode;
-        break;
-      }
-      node = node.return;
-    }
-  }
 
-  if (root !== null) {
-    // 将workInProgressRoot设置为新创建的HostRootFiber所挂载的ReactElement 也就是 <App />
-    if (workInProgressRoot === root) {
-      //接收到正在呈现的树的更新。作记号这root是未经加工的
-      markUnprocessedUpdateTime(expirationTime);// 设置 workInProgressRootNextUnprocessedUpdateTime = expirationTime
-
-      if (workInProgressRootExitStatus === RootSuspendedWithDelay) {
-        //根已被延迟挂起，这意味着此render肯定不会完成。既然我们有了一个新的更新，就在标记传入的更新之前，现在将其标记为挂起。
-        // 这会中断当前呈现并切换到更新 暂不解读
-        markRootSuspendedAtTime(root, renderExpirationTime);
-      }
-    }
-    // 标记根目录有挂起的更新。
-    // Mark that the root has a pending update.
-    markRootUpdatedAtTime(root, expirationTime);
-  }
-
-  return root;
-}
-```
-
-* `markRootUpdatedAtTime`函数标记根目录有挂起的更新，render函数第一次走到这里会将`HostRootFiber`下绑定的reactElement`<App />`的`firstPendingTime`设置为`expirationTime`
-```javascript
-// //标记根目录有正在等待状态的更新。
-export function markRootUpdatedAtTime(
-  root: FiberRoot,
-  expirationTime: ExpirationTime,
-): void {
-  // 更新pending时间范围， HostRootFiber初始化firstPendingTime=null ，所以会在这里设置firstPendingTime
-  const firstPendingTime = root.firstPendingTime;
-  if (expirationTime > firstPendingTime) {
-    root.firstPendingTime = expirationTime;
-  }
-  //更新悬停的时间的范围。将优先级较低或等于此更新的所有内容都视为未悬停
-  // 首先我们定义一下什么情况下任务是被悬停的：
-  // 出现可捕获的错误并且还有优先级更低的任务的情况下
-  // 当捕获到thenable，并且需要设置onTimeout的时候
-  // 我们称这个任务被suspended(悬停)了。记录这个时间主要是在resolve了promise之后，
-  const firstSuspendedTime = root.firstSuspendedTime;
-  if (firstSuspendedTime !== NoWork) {
-    if (expirationTime >= firstSuspendedTime) {
-      //整个暂停范围现在没有暂停。
-      // The entire suspended range is now unsuspended.
-      root.firstSuspendedTime = root.lastSuspendedTime = root.nextKnownPendingLevel = NoWork;
-    } else if (expirationTime >= root.lastSuspendedTime) {
-      root.lastSuspendedTime = expirationTime + 1;
-    }
-    //这是pending的级别。检查该级别是否高于下一个已知pending级别。
-    if (expirationTime > root.nextKnownPendingLevel) {
-      root.nextKnownPendingLevel = expirationTime;
-    }
-  }
-}
-```
-
-* `ensureRootIsScheduled`函数 这里是真正的调度入口，内部包含了对`App`React组件下所有`chillren`相关Fiber的创建绑定，及各种Hooks相关`effect`的创建绑定以及`update`的创建绑定，也有对子组件下面render函数真实dom的创建绑定，还有各种生命周期的执行，最后渲染整个真实dom的过程
+### `ensureRootIsScheduled`函数
+ * 这里是真正的调度入口，内部包含了对`App`React组件下所有`chillren`相关Fiber的创建绑定，及各种Hooks相关`effect`的创建绑定以及`update`的创建绑定，也有对子组件下面render函数真实dom的创建绑定，还有各种生命周期的执行，最后渲染整个真实dom的过程
 [ensureRootIsScheduled的真正解读](./ensureRootIsScheduled解读.md)
 
-* `getNextRootExpirationTimeToWorkOn`会按照 `root.lastExpiredTime`、`root.firstPendingTime`、`root.lastPingedTime`或`root.nextKnownPendingLevel`(哪个大返回那个)的顺序返回一个`expirationTime`
-```javascript
-function getNextRootExpirationTimeToWorkOn(root: FiberRoot): ExpirationTime {
-  //考虑到可能被挂起的级别或可能已收到ping的级别，确定根应呈现的下一个到期时间
-  // Determines the next expiration time that the root should render, taking
-  // into account levels that may be suspended, or levels that may have
-  // received a ping.
-  const lastExpiredTime = root.lastExpiredTime;
-  // 一般情况下lastExpiredTime = NoWork
-  if (lastExpiredTime !== NoWork) {
-    return lastExpiredTime;
-  }
-  //“挂起”是指任何尚未提交的更新，包括是否已挂起。因此，“suspended”范围是一个子集。
-  // "Pending" refers to any update that hasn't committed yet, including if it
-  // suspended. The "suspended" range is therefore a subset.
-  const firstPendingTime = root.firstPendingTime;
-  // 判断root是否处于悬停时间，firstSuspendedTime >= firstPendingTime >= lastSuspendedTime
-  if (!isRootSuspendedAtTime(root, firstPendingTime)) {
-    // The highest priority pending time is not suspended. Let's work on that.
-    //最高优先级挂起时间未挂起。让我们继续执行它。
-    return firstPendingTime;
-  }
-  //如果第一个挂起时间已挂起，请检查是否存在我们知道的较低优先级挂起级别。或者检查我们是否收到ping。优先考虑哪个
-  // If the first pending time is suspended, check if there's a lower priority
-  // pending level that we know about. Or check if we received a ping. Work
-  // on whichever is higher priority.
-  const lastPingedTime = root.lastPingedTime;
-  const nextKnownPendingLevel = root.nextKnownPendingLevel; // //挂起范围之后的下一个已知过期时间
-  const nextLevel =
-    lastPingedTime > nextKnownPendingLevel
-      ? lastPingedTime
-      : nextKnownPendingLevel;
-  if (nextLevel <= Idle && firstPendingTime !== nextLevel) {
-    //不要在空闲/从不优先的情况下工作，除非所有其他事情都已完成。
-    // Don't work on Idle/Never priority unless everything else is committed.
-    return NoWork;
-  }
-  return nextLevel;
-}
-```

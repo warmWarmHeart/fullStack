@@ -67,6 +67,86 @@ const HooksDispatcherOnMount: Dispatcher = {
   useEvent: mountEventListener,
 };
 ```
+### mountState
+* 步骤：
+    - 1新建一个hook，且将hook绑定为函数组件Fiber的`memoizedState`和`workInProgressHook`或者`workInProgressHook.next`，详细介绍请看下面关于`mountWorkInProgressHook`的介绍
+    - 2生成一个默认state：如果`initialState`参数是一个函数，就执行后再次赋值给自己
+    - 3将`initialState`赋值给上面第一步新建的`hook`的`memoizedState`属性和`baseState`属性
+    - 4 生成一个用于修改`initialState`的派发器：`dispatch`，且将其赋值给`hook.queue`
+* 源码
+```javascript
+function mountState<S>(
+  initialState: (() => S) | S,
+): [S, Dispatch<BasicStateAction<S>>] {
+  const hook = mountWorkInProgressHook();
+  if (typeof initialState === 'function') {
+    // $FlowFixMe: Flow doesn't like mixed types
+    initialState = initialState();
+  }
+  hook.memoizedState = hook.baseState = initialState;
+  const queue = (hook.queue = {
+    pending: null,
+    dispatch: null,
+    lastRenderedReducer: basicStateReducer,
+    lastRenderedState: (initialState: any),
+  });
+  const dispatch: Dispatch<
+    BasicStateAction<S>,
+  > = (queue.dispatch = (dispatchAction.bind(
+    null,
+    currentlyRenderingFiber, // workInProgress，当前工作的Fiber
+    queue, // 上面创建的对象
+  ): any));
+  return [hook.memoizedState, dispatch];
+}
+```
+
+#### mountWorkInProgressHook
+* HooksDispatcherOnMount的每个`hook`钩子函数都会调用它来生成一个描述自己的`Hook`对象
+* 1 初始化一个描述当前`hook`对象
+* 2 将当前`hook`对象放置于整个Hooks链表的最后
+    - 如果`workInProgressHook`为`null`，证明当前hook是`workInProgress`第一个`hook`对象，将 `workInProgress.memoizedState`和`workInProgressHook`都设置为第一步新创建的`hook`对象
+    - 如果`workInProgressHook`不为`null`，将当前新建的`hook`绑定到`workInProgress`的`next`属性（一个函数组件的hooks是一个链条，挨着的两个hook之间用next作为连接）
+```javascript
+function mountWorkInProgressHook(): Hook {
+  // 1 初始化一个描述当前`Hook`
+  const hook: Hook = {
+    memoizedState: null,
+
+    baseState: null,
+    baseQueue: null,
+    queue: null,
+
+    next: null,
+  };
+  // 每个hook新创建的时候workInProgressHook都等于null
+  if (workInProgressHook === null) {
+    // currentlyRenderingFiber 会在 renderWithHooks的时候赋值为当时的workInProgress
+    //这是列表中的第一个钩子
+    // This is the first hook in the list
+    currentlyRenderingFiber.memoizedState = workInProgressHook = hook;
+  } else {
+    //追加到列表末尾
+    // Append to the end of the list
+    workInProgressHook = workInProgressHook.next = hook;
+  }
+  return workInProgressHook;
+}
+```
+
+#### basicStateReducer
+```
+// 基态Reducer
+function basicStateReducer<S>(state: S, action: BasicStateAction<S>): S {
+  //$FlowFixMe:流不喜欢混合类型
+  // $FlowFixMe: Flow doesn't like mixed types
+  return typeof action === 'function' ? action(state) : action;
+}
+```
+
+#### dispatchAction
+* [参考文档](dispatchAction解析.md)
+
 ### mountCallback
 * 新建一个hook，且将hook绑定为函数组件Fiber的`memoizedState`和`workInProgressHook`或者`workInProgressHook.next`
 * 将`workInProgressHook`重新设置为上面新建的`hook`，方便下次有hook钩子调用的时候接着为它的`next`属性赋值
@@ -82,6 +162,132 @@ function mountCallback<T>(callback: T, deps: Array<mixed> | void | null): T {
   return callback;
 }
 ```
+
+### mountEffect
+* `mountEffect`函数主要调用了`mountEffectImpl`函数，接下来主要看`mountEffectImpl`函数
+* `mountEffectImpl`函数的形参：
+    - fiberEffectTag：UpdateEffect | PassiveEffect = 0b0000000000100 | 0b0001000000000 = 0b0001000000100 = 516
+    - hookEffectTag：HookPassive = 0b100 = 4
+    - create: `useEffect`第一个参数，一个函数，代表被动效果执行函数
+    - deps：`useEffect`第二个参数，一个数组，代表该被动效果的依赖列表，deps里的任何一个变量变化时都会触发`create`参数的执行
+* 执行步骤：
+    - 新建一个hook，且将hook绑定为函数组件Fiber的`memoizedState`和`workInProgressHook`或者`workInProgressHook.next`
+    - 设置`workInProgress`的`effectTag`属性，供React DevTools使用
+    - 给上面新建的`hook`的`memoizedState`属性赋值
+    
+* 执行完后 Fiber对象`workInProgress`和当前组件的hooks以及当前组件的effects的关系如下图：
+![effect](./img/Fiber-hook-effect.png)
+* 源码如下：
+```javascript
+function mountEffectImpl(fiberEffectTag, hookEffectTag, create, deps): void {
+  const hook = mountWorkInProgressHook();
+  const nextDeps = deps === undefined ? null : deps;
+  currentlyRenderingFiber.effectTag |= fiberEffectTag;
+  hook.memoizedState = pushEffect(
+    HookHasEffect | hookEffectTag,
+    create,
+    undefined,
+    nextDeps,
+  );
+}
+```
+#### pushEffect
+* 步骤
+    - 新建一个`effect`对象，用于存放被动效果的创建函数`create`、依赖`deps`、销毁函数`destroy`、当前被动效果的下一个被动效果`effect`，以及描述此被动效果的标签`tag`。`tag = HookHasEffect | hookEffectTag = 0b001 | HookPassive =0b001 | 0b100 = 5`
+    - 先判断 `workInProgress.UpdateQueue`有没有值，没有值新建一个 `{ lastEffect: null, }`对象赋值给 `workInProgress.UpdateQueue`，有值的话updateQueue.lastEffect指向了最后的最新的也就是当前创建的`effect`，而当前创建的`effect.next`指向第一个effect，从而形成一个闭环
+
+* 源码
+```javascript
+function pushEffect(tag, create, destroy, deps) {
+  const effect: Effect = {
+    tag,
+    create,
+    destroy,
+    deps,
+    // Circular
+    next: (null: any),
+  };
+  let componentUpdateQueue: null | FunctionComponentUpdateQueue = (currentlyRenderingFiber.updateQueue: any);  
+  // 如果workInProgress的UpdateQueue是空的，则创建一个对象赋值给workInProgress.UpdateQueue： { lastEffect: null, }
+  if (componentUpdateQueue === null) {
+    componentUpdateQueue = createFunctionComponentUpdateQueue();
+    currentlyRenderingFiber.updateQueue = (componentUpdateQueue: any);
+    // 为workInProgress.updateQueue的lastEffect的增加effect闭环，即workInProgress.UpdateQueue.lastEffect= effect，而effect.next = effect
+    componentUpdateQueue.lastEffect = effect.next = effect;
+  } else {
+    const lastEffect = componentUpdateQueue.lastEffect;
+    if (lastEffect === null) {
+      componentUpdateQueue.lastEffect = effect.next = effect;
+    } else {
+      const firstEffect = lastEffect.next;
+      lastEffect.next = effect;
+      effect.next = firstEffect;
+      componentUpdateQueue.lastEffect = effect;
+    }
+  }
+  return effect;
+}
+```
+
+### mountLayoutEffect
+* `mountLayoutEffect` 与 `mountEffect`的方式一样，都调用了`mountEffectImpl` 只是`mountEffectImpl`的参数传值发生了变化：
+    - fiberEffectTag：UpdateEffect  = 0b0000000000100  = 4
+    - hookEffectTag：HookLayout = 0b010 = 2
+
+### mountImperativeHandle
+* `mountImperativeHandle` 与 `mountEffect`的方式一样，都调用了`mountEffectImpl` 只是`mountEffectImpl`的参数传值发生了变化：
+    - fiberEffectTag：UpdateEffect  = 0b0000000000100  = 4
+    - hookEffectTag：HookLayout = 0b010 = 2
+    - create: 返回`imperativeHandleEffect`函数，该函数内执行了`mountImperativeHandle`第二个参数，且将执行后结果赋值给`ref.current`,且return出一个将`ref`设置为`null`的回调函数
+    - effectDeps: `[ref, ...deps]`，将`ref`加入到依赖中
+    
+* 源码
+```javascript
+function mountImperativeHandle<T>(
+  ref: {|current: T | null|} | ((inst: T | null) => mixed) | null | void,
+  create: () => T,
+  deps: Array<mixed> | void | null,
+): void {
+  // 将ref添加到该被动效果的依赖列表中
+  const effectDeps =
+    deps !== null && deps !== undefined ? deps.concat([ref]) : null;
+
+  return mountEffectImpl(
+    UpdateEffect,
+    HookLayout,
+    imperativeHandleEffect.bind(null, create, ref),
+    effectDeps,
+  );
+}
+```
+#### imperativeHandleEffect
+* 通过 `imperativeHandleEffect` 的第二个参数创建出需要为父组件提供的对象，然后赋值给`ref.current`，这样父组件就可以通过`.current`，调用子组件想要让父组件调用的函数或者参数
+* 最后返回`imperativeHandleEffect`的销毁函数
+* 源码
+```javascript
+function imperativeHandleEffect<T>(
+  create: () => T,
+  ref: {|current: T | null|} | ((inst: T | null) => mixed) | null | void,
+) {
+  if (typeof ref === 'function') {
+    const refCallback = ref;
+    const inst = create();
+    refCallback(inst);
+    return () => {
+      refCallback(null);
+    };
+  } else if (ref !== null && ref !== undefined) {
+    const refObject = ref;
+    const inst = create();
+    refObject.current = inst;
+    // 这是销毁函数
+    return () => {
+      refObject.current = null;
+    };
+  }
+}
+```
+
 
 ## HooksDispatcherOnUpdate
 ```javascript
@@ -127,37 +333,4 @@ const HooksDispatcherOnRerender: Dispatcher = {
   useMutableSource: updateMutableSource,
   useEvent: updateEventListener,
 };
-```
-
-## mountWorkInProgressHook
-* HooksDispatcherOnMount的每个`hook`钩子函数都会调用它来生成一个描述自己的`Hook`对象
-* 1 初始化一个描述当前`Hook`
-* 2 
-    - 如果`workInProgressHook`为`null`，证明当前hook是`workInProgress`第一个`hook`对象，将 `workInProgress.memoizedState`和`workInProgressHook`都设置为第一步新创建的`hook`对象
-    - 如果`workInProgressHook`不为`null`，将当前新建的`hook`绑定到`workInProgress`的`next`属性（一个函数组件的hooks是一个链条，挨着的两个hook之间用next作为连接）
-```javascript
-function mountWorkInProgressHook(): Hook {
-  // 1 初始化一个描述当前`Hook`
-  const hook: Hook = {
-    memoizedState: null,
-
-    baseState: null,
-    baseQueue: null,
-    queue: null,
-
-    next: null,
-  };
-  // 每个hook新创建的时候workInProgressHook都等于null
-  if (workInProgressHook === null) {
-    // currentlyRenderingFiber 会在 renderWithHooks的时候赋值为当时的workInProgress
-    //这是列表中的第一个钩子
-    // This is the first hook in the list
-    currentlyRenderingFiber.memoizedState = workInProgressHook = hook;
-  } else {
-    //追加到列表末尾
-    // Append to the end of the list
-    workInProgressHook = workInProgressHook.next = hook;
-  }
-  return workInProgressHook;
-}
 ```

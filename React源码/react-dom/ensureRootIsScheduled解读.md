@@ -112,7 +112,8 @@ function ensureRootIsScheduled(root: FiberRoot) {
 }
 ```
 
-* `inferPriorityFromExpirationTime`函数 执行的时候返回 `NormalPriority` (97)
+###`inferPriorityFromExpirationTime`函数
+* 执行的时候返回 `NormalPriority` (97)
 ```javascript
 export function inferPriorityFromExpirationTime(
   currentTime: ExpirationTime,
@@ -152,7 +153,7 @@ if (msUntil <= HIGH_PRIORITY_EXPIRATION + HIGH_PRIORITY_BATCH_SIZE) {
 
 ```
 
-* `scheduleCallback`函数 [查看此文档说明](../调度scheduler/readme.md)
+### `scheduleCallback`函数 [查看此文档说明](../调度scheduler/readme.md)
     > 这里调用`scheduleCallback`函数 的时候 `priorityLevel`获取到为`NormalPriority`，`timeout`接近 500
 ```javascript
 callbackNode = scheduleCallback(
@@ -162,7 +163,8 @@ callbackNode = scheduleCallback(
 );
 ```
 
-* `performConcurrentWorkOnRoot`会在调度相关函数`performWorkUntilDeadline`内执行，（`performWorkUntilDeadline`[文档说明](../调度scheduler/readme.md)）
+### `performConcurrentWorkOnRoot`
+* 会在调度相关函数`performWorkUntilDeadline`内执行，（`performWorkUntilDeadline`[文档说明](../调度scheduler/readme.md)）
     > `performConcurrentWorkOnRoot`的参数 `root`是`FiberRoot`，`didTimeout`是`true`
 
 ```javascript
@@ -241,7 +243,7 @@ function performConcurrentWorkOnRoot(root, didTimeout) {
 }
 ```
 
-* `markRootExpiredAtTime` 用来设置 `FiberRoot` 的 `lastExpiredTime`属性的。`lastExpiredTime`在`FiberRoot`初始化的时候为`NoWork`
+#### `markRootExpiredAtTime` 用来设置 `FiberRoot` 的 `lastExpiredTime`属性的。`lastExpiredTime`在`FiberRoot`初始化的时候为`NoWork`
 ```javascript
 // 标记root的渲染或者更新时间已经到期了
 export function markRootExpiredAtTime(
@@ -256,7 +258,7 @@ export function markRootExpiredAtTime(
 }
 ```
 
-## `performSyncWorkOnRoot`函数
+### `performSyncWorkOnRoot`函数
 ```javascript
 function performSyncWorkOnRoot(root) {
   // 刷新被动效果 flushPassiveEffects调用runWithPriority(priorityLevel, flushPassiveEffectsImpl);flushPassiveEffectsImpl又调用flushSyncCallbackQueue
@@ -345,10 +347,10 @@ function performSyncWorkOnRoot(root) {
 }
 ```
 
-* `renderRootSync`函数[参考文档](./renderRootSync解析.md)
-* `commitRoot`函数[参考文档](./commitRoot解析.md)
+### `renderRootSync`函数[参考文档](./renderRootSync解析.md)
+### `commitRoot`函数[参考文档](./commitRoot解析.md)
 
-* `performSyncWorkOnRoot`函数是在 `scheduleSyncCallback`中调用的
+### `performSyncWorkOnRoot`函数是在 `scheduleSyncCallback`中调用的
 
 ### `scheduleSyncCallback`函数
 * `scheduleSyncCallback`函数会将`performSyncWorkOnRoot`函数放入`syncQueue`队列末尾，
@@ -435,3 +437,44 @@ function flushSyncCallbackQueueImpl() {
 }
 ```
 
+
+#### `getNextRootExpirationTimeToWorkOn`会按照 `root.lastExpiredTime`、`root.firstPendingTime`、`root.lastPingedTime`或`root.nextKnownPendingLevel`(哪个大返回那个)的顺序返回一个`expirationTime`
+```javascript
+function getNextRootExpirationTimeToWorkOn(root: FiberRoot): ExpirationTime {
+  //考虑到可能被挂起的级别或可能已收到ping的级别，确定根应呈现的下一个到期时间
+  // Determines the next expiration time that the root should render, taking
+  // into account levels that may be suspended, or levels that may have
+  // received a ping.
+  const lastExpiredTime = root.lastExpiredTime;
+  // 一般情况下lastExpiredTime = NoWork
+  if (lastExpiredTime !== NoWork) {
+    return lastExpiredTime;
+  }
+  //“挂起”是指任何尚未提交的更新，包括是否已挂起。因此，“suspended”范围是一个子集。
+  // "Pending" refers to any update that hasn't committed yet, including if it
+  // suspended. The "suspended" range is therefore a subset.
+  const firstPendingTime = root.firstPendingTime;
+  // 判断root是否处于悬停时间，firstSuspendedTime >= firstPendingTime >= lastSuspendedTime
+  if (!isRootSuspendedAtTime(root, firstPendingTime)) {
+    // The highest priority pending time is not suspended. Let's work on that.
+    //最高优先级挂起时间未挂起。让我们继续执行它。
+    return firstPendingTime;
+  }
+  //如果第一个挂起时间已挂起，请检查是否存在我们知道的较低优先级挂起级别。或者检查我们是否收到ping。优先考虑哪个
+  // If the first pending time is suspended, check if there's a lower priority
+  // pending level that we know about. Or check if we received a ping. Work
+  // on whichever is higher priority.
+  const lastPingedTime = root.lastPingedTime;
+  const nextKnownPendingLevel = root.nextKnownPendingLevel; // //挂起范围之后的下一个已知过期时间
+  const nextLevel =
+    lastPingedTime > nextKnownPendingLevel
+      ? lastPingedTime
+      : nextKnownPendingLevel;
+  if (nextLevel <= Idle && firstPendingTime !== nextLevel) {
+    //不要在空闲/从不优先的情况下工作，除非所有其他事情都已完成。
+    // Don't work on Idle/Never priority unless everything else is committed.
+    return NoWork;
+  }
+  return nextLevel;
+}
+```

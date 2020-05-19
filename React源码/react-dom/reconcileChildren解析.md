@@ -1,20 +1,38 @@
 # reconcileChildren解析
 
-## `reconcileChildren` 函数`newChildren` 参数
-```javascript
-{
-    $$typeof: Symbol(react.element),
-    key: null,
-    props: {children: ""},
-    ref: null,
-    type: function App(),
-    _owner: null,
-    _store: {validated: false},
-}
-```
+## `reconcileChildren` 函数
+* `mount`阶段为传入的所有**直接**子元素分配`Fiber`
+* `update`阶段根据旧 `Fiber` 的下标 `index`、`key` 等属性进行更新、删除操作
+* 将所有`fiber`用`sibling`属性和`return`属性连接起来
+    - `sibling`属性指向兄弟Fiber节点
+    - `return`指向父Fiber节点
+* 最后返回 第一个Fiber对象，作为父`Fiber`对象的`child`属性值
+### `newChildren` 参数
+* 如果是一个ReactElement，则会使类似如下一个对象：
+    ```javascript
+    {
+        $$typeof: Symbol(react.element),
+        key: null,
+        props: {children: ""},
+        ref: null,
+        type: function App(),
+        _owner: null,
+        _store: {validated: false},
+    }
+    ```
+* 如果是一个对象，代表有多个`child`：则会是如下参数
+    ```javascript
+      [
+          0: "hello"
+          1: {$$typeof: Symbol(react.element), type: "span", key: null, ref: null, props: {…}, …}
+          2: {$$typeof: Symbol(react.element), key: null, ref: null, props: {…}, type: ƒ, …}
+          3: {$$typeof: Symbol(react.element), key: null, ref: null, props: {…}, type: ƒ, …}
+          4: {$$typeof: Symbol(react.element), key: null, ref: null, props: {…}, type: ƒ, …}
+      ]
+    ```
+* 如果是数字`number`类型或者`string`字符串类型，则证明`this.props.children`是文字类型
+
 ## `reconcileChildren`源码
-> `reconcileChildren`源码是在执行`renderRootSync`的时候调用`updateHostRoot`函数时候调用的，`renderRootSync`源码和`updateHostRoot`源码[参考文档](./renderRootSync解析.md)
-* 通过`reconcileChildFibers`为`workInProgress`创建一个子`Fiber`，指向其`child`属性
 ```javascript
 /**
 * 这是updateHostRoot调用的时候的参数
@@ -66,7 +84,7 @@ export function reconcileChildren(
 }
 ```
 
-## `reconcileChildFibers`源码分析
+### `reconcileChildFibers`源码分析
 * `reconcileChildFibers`函数就是通过`ChildReconciler(true)`返回的一个函数，所以接下来直接看`ChildReconciler`源码
 ```javascript
 const reconcileChildFibers = ChildReconciler(true);
@@ -173,17 +191,37 @@ function reconcileChildFibers(
   }
 ```
 
-## `reconcileSingleElement`函数
+
+### `placeSingleChild`函数
+
+* `placeSingleChild`函数的形参是一个新`Fiber`,`placeSingleChild`函数就是加工下该`Fiber`,为其effectTag 赋值`Placement`
+
+* 源码
+```javascript
+function placeSingleChild(newFiber: Fiber): Fiber {
+    //对于独生子女来说，这更简单。我们只需要做一个插入新孩子的位置。
+    // This is simpler for the single child case. We only need to do a
+    // placement for inserting new children.
+    // shouldTrackSideEffects 参数 等于 true，newFiber是新创建出来的fiber 所以alternate属性等于null，因此会进行下面赋值
+    if (shouldTrackSideEffects && newFiber.alternate === null) {
+      newFiber.effectTag = Placement;
+    }
+    return newFiber;
+  }
+```
+
+
+### `reconcileSingleElement`函数
 
 * 源码
 ```javascript
 function reconcileSingleElement(
     returnFiber: Fiber,
-    currentFirstChild: Fiber | null, // null
+    currentFirstChild: Fiber | null, // 第一次为null
     element: ReactElement, // <App>
     expirationTime: ExpirationTime,
   ): Fiber {
-    const key = element.key;
+    const key = element.key; // 第一次为null
     let child = currentFirstChild; // 第一次render的时候是null，所以不会走下面while循环
     while (child !== null) {
       //TODO:如果key==null和child.key==null，则这仅适用于列表中的第一个项。
@@ -236,10 +274,6 @@ function reconcileSingleElement(
               const existing = useFiber(child, element.props);
               existing.ref = coerceRef(returnFiber, child, element);
               existing.return = returnFiber;
-              if (__DEV__) {
-                existing._debugSource = element._source;
-                existing._debugOwner = element._owner;
-              }
               return existing;
             }
             break;
@@ -281,14 +315,20 @@ function reconcileSingleElement(
 
 #### `createFiberFromElement`函数
 * `createFiberFromElement`函数逻辑很简单 创建了一个`fiber`，然后返回该`fiber`对象， `fiber`对象[参考文档](../Fiber/Fiber对象解读.md)
-
+* 上面创建的`fiber`对象包含了通过 reactElement.render 返回来的 `props.children`: 一个包含普通html元素、react元素、文本元素的集合
 * `reconcileSingleElement` 函数参数
     - `element` 
         ```javascript
         {
             $$typeof: Symbol(react.element),
             key: null,
-            props: {children: ""},
+            props: {children: [
+                0: "hello"
+                1: {$$typeof: Symbol(react.element), type: "span", key: null, ref: null, props: {…}, …}
+                2: {$$typeof: Symbol(react.element), key: null, ref: null, props: {…}, type: ƒ, …}
+                3: {$$typeof: Symbol(react.element), key: null, ref: null, props: {…}, type: ƒ, …}
+                4: {$$typeof: Symbol(react.element), key: null, ref: null, props: {…}, type: ƒ, …}
+            ]},
             ref: null,
             type: function App(),
             _owner: null,
@@ -312,7 +352,7 @@ function createFiberFromElement(
   const fiber = createFiberFromTypeAndProps(
     type, // function App () {...}
     key,
-    pendingProps, // { children: null }
+    pendingProps, // { children: [....] }
     owner, // null
     mode, // NoMode
     expirationTime,
@@ -324,7 +364,7 @@ function createFiberFromElement(
 #### `createFiberFromTypeAndProps`函数
 * 形参
     - type：function App () {...}
-    - pendingProps： { children: null }
+    - pendingProps： { children: [] }
 * 根据传进来的`type`先生成一个fiber的tag
 * 创建一个fiber return出去
 ```javascript
@@ -350,8 +390,10 @@ function createFiberFromTypeAndProps(
     } else {
     }
   } else if (typeof type === 'string') {
+      // 这里就是寻常的html标签 如： div、li等等
     fiberTag = HostComponent;
   } else {
+      // 根据type 获取不同 fiber tag
     getTag: switch (type) {
       case REACT_FRAGMENT_TYPE:
         return createFiberFromFragment(
@@ -429,7 +471,7 @@ function createFiberFromTypeAndProps(
       }
     }
   }
-
+  // pendingProps: {children: ['div', ReactElement1,ReactElement2, ...]}
   fiber = createFiber(fiberTag, pendingProps, key, mode);
   fiber.elementType = type;
   fiber.type = resolvedType; // 如果类型是REACT_LAZY_TYPE则会 设置为null
@@ -500,20 +542,435 @@ function coerceRef(
 }
 ```
 
-### `placeSingleChild`函数
+### reconcileChildrenArray
+* 当外界传给`reconcileChildren`的`nextChildren`类型是`Array`的时候调用此函数
+* 如果是初次渲染则为`nextChildren`每个元素都分配一个`fiber`对象
+* 否则按照新旧Fiber对象的key、index等属性进行更新Fiber操作
 
-* `placeSingleChild`函数的形参是一个新`Fiber`,`placeSingleChild`函数就是加工下该`Fiber`,为其effectTag 赋值`Placement`
-
-* 源码
 ```javascript
-function placeSingleChild(newFiber: Fiber): Fiber {
-    //对于独生子女来说，这更简单。我们只需要做一个插入新孩子的位置。
-    // This is simpler for the single child case. We only need to do a
-    // placement for inserting new children.
-    // shouldTrackSideEffects 参数 等于 true，newFiber是新创建出来的fiber 所以alternate属性等于null，因此会进行下面赋值
-    if (shouldTrackSideEffects && newFiber.alternate === null) {
-      newFiber.effectTag = Placement;
+function reconcileChildrenArray(
+    returnFiber: Fiber,
+    currentFirstChild: Fiber | null,
+    newChildren: Array<*>,
+    expirationTime: ExpirationTime,
+  ): Fiber | null {
+    //这个算法不能通过从两端搜索来优化，因为
+    //光纤上没有反向指针。我想看看我们能走多远
+    //用那个模型。如果最终不值得权衡，我们可以
+    //以后再加。
+    //即使是双端优化，我们也希望对这个案例进行优化
+    //只有很少的变化和残酷的比较而不是
+    //去拿地图。我想先探索一下这条路
+    //只前进模式，只有当我们注意到我们需要
+    //展望未来。这不能像两个结束时那样处理反转
+    //但这不寻常。另外，对于双端优化
+    //我们需要复制整套。
+    //在第一次迭代中，我们将只处理坏情况
+    //（将所有内容添加到地图中）用于每次插入/移动。
+    //如果更改此代码，还应更新reconcileChildrenIterator（），其中
+    //使用相同的算法。
+    // This algorithm can't optimize by searching from both ends since we
+    // don't have backpointers on fibers. I'm trying to see how far we can get
+    // with that model. If it ends up not being worth the tradeoffs, we can
+    // add it later.
+    // Even with a two ended optimization, we'd want to optimize for the case
+    // where there are few changes and brute force the comparison instead of
+    // going for the Map. It'd like to explore hitting that path first in
+    // forward-only mode and only go for the Map once we notice that we need
+    // lots of look ahead. This doesn't handle reversal as well as two ended
+    // search but that's unusual. Besides, for the two ended optimization to
+    // work on Iterables, we'd need to copy the whole set.
+    // In this first iteration, we'll just live with hitting the bad case
+    // (adding everything to a Map) in for every insert/move.
+    // If you change this code, also update reconcileChildrenIterator() which
+    // uses the same algorithm.
+
+    let resultingFirstChild: Fiber | null = null;
+    let previousNewFiber: Fiber | null = null;
+
+    let oldFiber = currentFirstChild; // 初次渲染为null
+    let lastPlacedIndex = 0;
+    let newIdx = 0;
+    let nextOldFiber = null;
+    // 初次渲染oldFiber为null 所以不会走下列循环
+    // 更新阶段oldFiber不为null
+    for (; oldFiber !== null && newIdx < newChildren.length; newIdx++) {
+        // 如果旧的第一个Fiber的下标大于newIdx，证明旧Fiber并不是当前`newChildren`集合的第一个fiber
+      if (oldFiber.index > newIdx) {
+        nextOldFiber = oldFiber;
+        oldFiber = null; // 在循环末尾会将nextOldFiber又赋值给oldFiber
+      } else {
+        nextOldFiber = oldFiber.sibling;
+      }
+      // 更新每个子Fiber
+      const newFiber = updateSlot(
+        returnFiber,
+        oldFiber,
+        newChildren[newIdx],
+        expirationTime,
+      );
+      if (newFiber === null) {
+        // TODO: This breaks on empty slots like null children. That's
+        // unfortunate because it triggers the slow path all the time. We need
+        // a better way to communicate whether this was a miss or null,
+        // boolean, undefined, etc.
+        if (oldFiber === null) {
+          oldFiber = nextOldFiber;
+        }
+        break;
+      }
+      // 初始渲染的时候shouldTrackSideEffects为false
+      if (shouldTrackSideEffects) {
+        if (oldFiber && newFiber.alternate === null) {
+          // We matched the slot, but we didn't reuse the existing fiber, so we
+          // need to delete the existing child.
+          deleteChild(returnFiber, oldFiber);
+        }
+      }
+      lastPlacedIndex = placeChild(newFiber, lastPlacedIndex, newIdx);
+      if (previousNewFiber === null) {
+        resultingFirstChild = newFiber;
+      } else {
+       // 将兄弟节点之间用sibling属性连接起来
+        previousNewFiber.sibling = newFiber;
+      }
+      // 将兄弟节点之间用sibling属性连接起来
+      previousNewFiber = newFiber;
+      oldFiber = nextOldFiber;
     }
-    return newFiber;
+
+    // 删除所有旧的多于的Fiber节点
+    if (newIdx === newChildren.length) {
+        //我们已经到了新孩子的末日。我们可以删除其余的。
+      // We've reached the end of the new children. We can delete the rest.
+      deleteRemainingChildren(returnFiber, oldFiber);
+      return resultingFirstChild;
+    }
+
+    if (oldFiber === null) {
+        // 初始化会走这里
+        //如果我们没有任何现有的孩子，我们可以选择一条快速的道路，因为其余的都是插入。
+      // If we don't have any more existing children we can choose a fast path
+      // since the rest will all be insertions.
+      for (; newIdx < newChildren.length; newIdx++) {
+          // 为每个child都创建一个单独的fiber对象
+        const newFiber = createChild(
+          returnFiber,
+          newChildren[newIdx],
+          expirationTime,
+        );
+        if (newFiber === null) {
+          continue;
+        }
+        // 为newFiber分配一个下标index = newIdx
+        lastPlacedIndex = placeChild(newFiber, lastPlacedIndex, newIdx);
+        if (previousNewFiber === null) {
+          resultingFirstChild = newFiber;
+        } else {
+          previousNewFiber.sibling = newFiber; // 通过sibling属性将所以兄弟Fiber节点关联起来
+        }
+        previousNewFiber = newFiber;
+      }
+      return resultingFirstChild;
+    }
+    //将所有子项添加到键映射以进行快速查找。
+    // Add all children to a key map for quick lookups.
+    const existingChildren = mapRemainingChildren(returnFiber, oldFiber);
+
+    //继续扫描并使用映射还原移动时删除的项目。
+    // Keep scanning and use the map to restore deleted items as moves.
+    for (; newIdx < newChildren.length; newIdx++) {
+      const newFiber = updateFromMap(
+        existingChildren,
+        returnFiber,
+        newIdx,
+        newChildren[newIdx],
+        expirationTime,
+      );
+      if (newFiber !== null) {
+        if (shouldTrackSideEffects) {
+          if (newFiber.alternate !== null) {
+              //新的光纤正在进行中，但如果存在电流，这意味着我们重新使用了光纤。我们需要从子列表中删除它，这样就不会将其添加到删除列表中。
+            // The new fiber is a work in progress, but if there exists a
+            // current, that means that we reused the fiber. We need to delete
+            // it from the child list so that we don't add it to the deletion
+            // list.
+            existingChildren.delete(
+              newFiber.key === null ? newIdx : newFiber.key,
+            );
+          }
+        }
+        lastPlacedIndex = placeChild(newFiber, lastPlacedIndex, newIdx);
+        if (previousNewFiber === null) {
+          resultingFirstChild = newFiber;
+        } else {
+          previousNewFiber.sibling = newFiber;
+        }
+        previousNewFiber = newFiber;
+      }
+    }
+
+    if (shouldTrackSideEffects) {
+      //删除了上面未使用的所有现有子项。我们需要将它们添加到删除列表中。
+      // Any existing children that weren't consumed above were deleted. We need
+      // to add them to the deletion list.
+      existingChildren.forEach(child => deleteChild(returnFiber, child));
+    }
+
+    return resultingFirstChild;
   }
 ```
+
+#### createChild
+
+* 根据newChild的类型为每一个`newChild`分配一个Fiber对象
+
+```javascript
+function createChild(
+    returnFiber: Fiber,
+    newChild: any,
+    expirationTime: ExpirationTime,
+  ): Fiber | null {
+    if (typeof newChild === 'string' || typeof newChild === 'number') {
+      // Text nodes don't have keys. If the previous node is implicitly keyed
+      // we can continue to replace it without aborting even if it is not a text
+      // node.
+      const created = createFiberFromText(
+        '' + newChild,
+        returnFiber.mode,
+        expirationTime,
+      );
+      created.return = returnFiber;
+      return created;
+    }
+
+    if (typeof newChild === 'object' && newChild !== null) {
+      switch (newChild.$$typeof) {
+        case REACT_ELEMENT_TYPE: {
+          const created = createFiberFromElement(
+            newChild,
+            returnFiber.mode,
+            expirationTime,
+          );
+          created.ref = coerceRef(returnFiber, null, newChild);
+          created.return = returnFiber;
+          return created;
+        }
+        case REACT_PORTAL_TYPE: {
+          const created = createFiberFromPortal(
+            newChild,
+            returnFiber.mode,
+            expirationTime,
+          );
+          created.return = returnFiber;
+          return created;
+        }
+      }
+
+      if (isArray(newChild) || getIteratorFn(newChild)) {
+        const created = createFiberFromFragment(
+          newChild,
+          returnFiber.mode,
+          expirationTime,
+          null,
+        );
+        created.return = returnFiber;
+        return created;
+      }
+
+      throwOnInvalidObjectType(returnFiber, newChild);
+    }
+    return null;
+  }
+```
+
+#### placeChild
+* 为child元素的`Fiber`分配一个`index`属性，用于标明该child元素位于父元素的第几个子元素
+* 更新Update阶段`shouldTrackSideEffects`为`true`，所以 根据当前子元素的Fiber对象的下标来判定元素是否应该往前后者往后移动：当旧index小于新index的时候，证明元素需要向后移
+
+```javascript
+function placeChild(
+    newFiber: Fiber,
+    lastPlacedIndex: number,
+    newIndex: number,
+  ): number {
+    newFiber.index = newIndex;
+    if (!shouldTrackSideEffects) {
+      // Noop.
+      return lastPlacedIndex;
+    }
+    // 更新阶段shouldTrackSideEffects为true，所以 根据当前子元素的Fiber对象的下标来判定元素是否应该往前后者往后移动
+    const current = newFiber.alternate;
+    if (current !== null) {
+      const oldIndex = current.index;
+      if (oldIndex < lastPlacedIndex) {
+        // This is a move.
+        newFiber.effectTag = Placement;
+        return lastPlacedIndex;
+      } else {
+        // This item can stay in place.
+        return oldIndex;
+      }
+    } else {
+      //这是插入。
+      // This is an insertion.
+      newFiber.effectTag = Placement;
+      return lastPlacedIndex;
+    }
+  }
+```
+
+#### updateSlot
+* 
+```javascript
+function updateSlot(
+    returnFiber: Fiber,
+    oldFiber: Fiber | null,
+    newChild: any,
+    expirationTime: ExpirationTime,
+  ): Fiber | null {
+    //如果key匹配，则更新fiber，否则返回null。
+    // Update the fiber if the keys match, otherwise return null.
+
+    const key = oldFiber !== null ? oldFiber.key : null;
+
+    if (typeof newChild === 'string' || typeof newChild === 'number') {
+      //文本节点没有键。如果上一个节点隐式设置了关键帧即使不是文本，我们也可以继续替换它而不终止节点。
+      // Text nodes don't have keys. If the previous node is implicitly keyed
+      // we can continue to replace it without aborting even if it is not a text
+      // node.
+      if (key !== null) {
+        return null;
+      }
+      // 更新文本节点
+      return updateTextNode(
+        returnFiber,
+        oldFiber,
+        '' + newChild,
+        expirationTime,
+      );
+    }
+
+    if (typeof newChild === 'object' && newChild !== null) {
+      switch (newChild.$$typeof) {
+        case REACT_ELEMENT_TYPE: {
+          if (newChild.key === key) {
+            if (newChild.type === REACT_FRAGMENT_TYPE) {
+              return updateFragment(
+                returnFiber,
+                oldFiber,
+                newChild.props.children,
+                expirationTime,
+                key,
+              );
+            }
+            // 更新React元素
+            return updateElement(
+              returnFiber,
+              oldFiber,
+              newChild,
+              expirationTime,
+            );
+          } else {
+            return null;
+          }
+        }
+        case REACT_PORTAL_TYPE: {
+          if (newChild.key === key) {
+            return updatePortal(
+              returnFiber,
+              oldFiber,
+              newChild,
+              expirationTime,
+            );
+          } else {
+            return null;
+          }
+        }
+      }
+
+      if (isArray(newChild) || getIteratorFn(newChild)) {
+        if (key !== null) {
+          return null;
+        }
+
+        return updateFragment(
+          returnFiber,
+          oldFiber,
+          newChild,
+          expirationTime,
+          null,
+        );
+      }
+
+      throwOnInvalidObjectType(returnFiber, newChild);
+    }
+    return null;
+  }
+```
+
+### `reconcileSingleTextNode`
+
+* 当外界传给`reconcileChildren`的`nextChildren`类型是`String`或者`Number`的时候调用此函数
+
+```javascript
+function reconcileSingleTextNode(
+    returnFiber: Fiber,
+    currentFirstChild: Fiber | null,
+    textContent: string,
+    expirationTime: ExpirationTime,
+  ): Fiber {
+    //不需要检查文本节点上的键，因为我们没有方法定义它们。
+    // There's no need to check for keys on text nodes since we don't have a
+    // way to define them.
+    if (currentFirstChild !== null && currentFirstChild.tag === HostText) {
+      //我们已经有一个现有的节点，所以让我们更新它并删除其余的节点。
+      // We already have an existing node so let's just update it and delete
+      // the rest.
+      deleteRemainingChildren(returnFiber, currentFirstChild.sibling);
+      const existing = useFiber(currentFirstChild, textContent);
+      existing.return = returnFiber;
+      return existing;
+    }
+    //现有的第一个子节点不是文本节点，因此我们需要创建一个删除现有的
+    // The existing first child is not a text node so we need to create one
+    // and delete the existing ones.
+    deleteRemainingChildren(returnFiber, currentFirstChild);
+    const created = createFiberFromText(
+      textContent,
+      returnFiber.mode,
+      expirationTime,
+    );
+    created.return = returnFiber;
+    return created;
+  }
+```
+#### deleteRemainingChildren
+* 删除剩余的节点，复用currentFirstChild节点，并且更新复用节点（existing）的父级节点（return）
+```javascript
+  function deleteRemainingChildren(
+    returnFiber: Fiber,
+    currentFirstChild: Fiber | null,
+  ): null {
+    let childToDelete = currentFirstChild;
+    // 删除子节点以及所有孙子节点
+    while (childToDelete !== null) {
+      deleteChild(returnFiber, childToDelete); 
+      childToDelete = childToDelete.sibling; 
+    }
+    return null;
+  }
+```
+#### createFiberFromText
+* 创建一个`tag`属性是`HostText`的Fiber对象
+````javascript
+function createFiberFromText(
+  content: string,
+  mode: TypeOfMode,
+  expirationTime: ExpirationTime,
+): Fiber {
+  const fiber = createFiber(HostText, content, null, mode);
+  fiber.expirationTime = expirationTime;
+  return fiber;
+}
+````

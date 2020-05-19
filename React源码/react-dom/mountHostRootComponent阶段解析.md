@@ -8,8 +8,8 @@
 function updateHostRoot(current, workInProgress, renderExpirationTime) {
   pushHostRootContext(workInProgress); // 设置root相关context的变量指针
   const updateQueue = workInProgress.updateQueue;
-  const nextProps = workInProgress.pendingProps;
-  const prevState = workInProgress.memoizedState; // 第一次render的时候是null
+  const nextProps = workInProgress.pendingProps; // null
+  const prevState = workInProgress.memoizedState;  // null
   const prevChildren = prevState !== null ? prevState.element : null; // null
   // 将两个updateQueue分别指向不同的地方
   cloneUpdateQueue(current, workInProgress);

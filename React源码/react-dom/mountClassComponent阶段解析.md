@@ -8,10 +8,10 @@
 * 5 将第 4 部得到的`fiber`对象赋值给`workInProgress`，然后继续执行[`workLoopSync`函数](renderRootSync解析.md)里的循环部分：对[`performUnitOfWork`函数](performUnitOfWork函数.md)的执行,
 ```javascript
 function updateClassComponent(
-  current: Fiber | null,
+  current: Fiber | null, // 第一次mount的时候 这里是null，因为外部`current`是从`workInProgress.alternate（值是null）取的
   workInProgress: Fiber,
-  Component: any,
-  nextProps, // {children: null}
+  Component: any, // 类组件构造函数 如 function App() {}
+  nextProps, // 空对象{}
   renderExpirationTime: ExpirationTime,
 ) {
   //提前推送上下文提供程序以防止上下文堆栈不匹配。
@@ -178,7 +178,7 @@ export function prepareToReadContext(
 * 参数
     - workInProgress：Fiber
     - ctor：类组件构造函数
-    - props：{ children: null }
+    - props：{ }
 * 读取 `context._currentValue` 的同时 为`workInProgress.dependencies`赋初始值
     ```javascript
           {
@@ -187,8 +187,22 @@ export function prepareToReadContext(
             responders: null,
           }
     ```
-* 通过 `new` 标识符 调用 类函数 `function App(){}`实例化一个对象，就是包含我们平常有`render`方法、各种生命钩子的**组件**实例
-* 源码
+* 通过 `new` 标识符 调用 类函数 `function App(){}`实例化一个对象，该对象如下：
+    ```javascript
+    {
+      context: {},
+      props: {},
+      refs: {},
+      updater: {
+          enqueueForceUpdate: ƒ (inst, callback)
+          enqueueReplaceState: ƒ (inst, payload, callback)
+          enqueueSetState: ƒ (inst, payload, callback)
+          isMounted: ƒ isMounted(component)
+      },
+      _reactInternalFiber: {...workInProgress},
+    }
+    ```
+## 源码
 ```javascript
 function constructClassInstance(
   workInProgress: Fiber,
@@ -652,7 +666,7 @@ function checkShouldComponentUpdate(
 * 源码
 ```javascript
 function finishClassComponent(
-  current: Fiber | null,
+  current: Fiber | null, // 绑定阶段为null
   workInProgress: Fiber,
   Component: any,
   shouldUpdate: boolean,
@@ -696,7 +710,7 @@ function finishClassComponent(
     nextChildren = null;
   } else {
     // 重新执行实例的render函数赋值给nextChildren
-    // 在 workInProgress 节点自身处理完成之后，会通过props.children或者instance.render方法获取子 ReactElement。子 ReactElement 可能是对象、数组、字符串、迭代器，针对不同的类型进行处理。
+    // 在 workInProgress 节点自身处理完成之后，会通过props.children或者instance.render方法获取子 ReactElement的props.children。子 ReactElement 可能是对象、数组、字符串、迭代器，针对不同的类型进行处理。
     nextChildren = instance.render();
   }
 

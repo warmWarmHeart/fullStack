@@ -1,5 +1,7 @@
 # `renderRootSync`函数
 * `renderRootSync`函数 执行`workLoopSync`一次后就打断循环，而`workLoopSync`本身内部存在一个`while`循环。
+
+## 源码
 ```javascript
 function renderRootSync(root, expirationTime) {
   const prevExecutionContext = executionContext;

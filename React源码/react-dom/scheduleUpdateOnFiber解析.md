@@ -1,6 +1,12 @@
 # scheduleUpdateOnFiber
 * 通过调度`Scheduler`更新fiber，此处是更新创建好的`HostRootFiber`。
 * 调度相关文档可以[参考这里](../调度scheduler/readme.md)
+## 步骤说明
+* 检查嵌套更新，如果超过50就报错
+* 遍历更新当前Fiber的整个父级Fiber树，如果某个父级或者祖父级Fiber树的`childExpirationTime`比当前`Fiber`的`expirationTime`，则全部设置为当前`Fiber`的`expirationTime`，标明有子孙级Fiber存在更新
+* 获取当前React版本的优先级： `NormalPriority`（ 97 ）
+* 根据当前`Fiber`的`expirationTime`决定接下来执行哪一步：
+    - 第一次render阶段：`performSyncWorkOnRoot`函数
 
 ## 源码
 ```javascript

@@ -423,6 +423,12 @@ export function unbatchedUpdates<A, R>(fn: (a: A) => R, a: A): R {
 ```
 
 ### 重头戏 `updateContainer`
+* 计算一个`currentTime`
+* 根据`currentTime`和`current`Fiber对象得出一个过期时间`expirationTime`，这里得出的是 `Sync`,也就是同步执行的意思
+* 获取父组件上的`context`，这里因为父组件是`null`，所以`context`得到的是一个空对象，设置`container.context`
+* 创建一个`tag`属性是`UpdateState`的`update`对象，且将`update`对象的`payload`属性设置为`{element: '通过React.createElement创建出来的ReactElement对象'}
+* 为`current`Fiber对象绑定一个`UpdateQueue`对象，且将上一步创建的`update`对象绑定到`UpdateQueue`对象的`shared.pending`属性上，等待将来将`shared.pending`属性上的update链全部转移到`firstBaseUpdate`属性上
+* 最后执行`scheduleUpdateOnFiber`函数，[参考文档](scheduleUpdateOnFiber解析.md)
 
 ```javascript
 export function updateContainer(
@@ -458,7 +464,7 @@ export function updateContainer(
   // );
 
   // 当computeExpirationForFiber内部获取的expirationTime === renderExpirationTime的时候 将expirationTime - 1 然后返回
-  // expirationTime 比 currentTime 小大概500ms有差值
+  //实际计算了一下 expirationTime 比 currentTime 大大概三十毫秒左右
   const expirationTime = computeExpirationForFiber(
     currentTime,
     current,
@@ -558,6 +564,9 @@ if (
     getCurrentTime = () => Date.now() - initialTime;
   }
 ```
+
+### computeExpirationForFiber
+* 获取一个过期时间：因为mode & BlockingMode 等于0，`&`是按位与，全部等于1则为1，否则为0
 ```javascript
 export function computeExpirationForFiber(
   currentTime: ExpirationTime,
@@ -565,7 +574,7 @@ export function computeExpirationForFiber(
   suspenseConfig: null | SuspenseConfig,
 ): ExpirationTime {
   const mode = fiber.mode; // root的mode是NoMode
-  // const BlockingMode = 0b0010; BlockingMode不等于NoMode，所以不反回Sync
+  // const BlockingMode = 0b0010; BlockingMode不等于NoMode，所以返回Sync
   if ((mode & BlockingMode) === NoMode) {
     return Sync;
   }

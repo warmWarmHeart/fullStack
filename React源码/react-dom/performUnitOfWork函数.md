@@ -1,4 +1,6 @@
 # `performUnitOfWork`函数
+* 为当前Fiber对象所代表的ReactElement的所有子节点分配Fiber对象，且用`sibling`属性和`return`属性连接整个Fiber树
+
 * 第一阶段：执行`beginWork`，然后在`beginWork`内部根据当前`workInProgress`的`Fiber`的type以及`workInProgress`对应的ReactElement对象的`type`（就是React组件的构造函数）来创建一个新的`fiber`，指向`workInProgress`的`child`属性
     > 当`performUnitOfWork`函数在父函数`workLoopSync`循环执行多次，生成的子`Fiber`的`tag`为`HostText`的时候，`next`这时候变成了`null`：意思是当前`fiber`对应着一段文字，以及到达Fiber树的底部，再也无法向下执行了
 * 第二个阶段：执行`completeUnitOfWork`函数
@@ -18,10 +20,11 @@ function performUnitOfWork(unitOfWork: Fiber): Fiber | null {
   // 使用current和unitOfWork进行对比，更新某些操作属性等
   next = beginWork(current, unitOfWork, renderExpirationTime);
 
-  // 设置每一个fiber的props
+  // 设置每一个fiber的props，初次为null
   unitOfWork.memoizedProps = unitOfWork.pendingProps;
   if (next === null) {
-    // 当next = null 的时候证明 当前元素已经没有child了，所以需要回溯找他returnFiber的兄弟节点，然后继续进行beginWork。。。。知道找到rootFiber
+    
+    // 当next = null 的时候证明 当前元素已经没有child了，props.children已经是字符串或者数字类型，所以需要回溯找他returnFiber的兄弟节点，然后继续进行beginWork。。。。知道找到rootFiber
     //如果这没有产生新的工作，请完成当前的工作。
     // 进入这个流程，表明 workInProgress 节点是一个叶子节点，或者它的子节点都已经处理完成了。现在开始要完成这个节点处理的剩余工作。
     // If this doesn't spawn new work, complete the current work.
@@ -62,6 +65,7 @@ function beginWork(
   // const current = workInProgress.alternate; 是workInProgress的备份
   const updateExpirationTime = workInProgress.expirationTime;
   if (current !== null) {
+     // 第一次render HostRootFiber的时候  oldProps === newProps === null
     const oldProps = current.memoizedProps;
     const newProps = workInProgress.pendingProps;
 
@@ -287,7 +291,7 @@ function beginWork(
   // move this assignment out of the common path and into each branch.
   workInProgress.expirationTime = NoWork;
 
-  // mount阶段
+  // mount阶段 第一次走的时候 tag是 HostRoot：3
   switch (workInProgress.tag) {
     // 在我们知道他是函数组件还是类组件之前
     case IndeterminateComponent: {
@@ -337,7 +341,7 @@ function beginWork(
         current,
         workInProgress,
         Component,
-        resolvedProps,
+        resolvedProps, // {}
         renderExpirationTime,
       );
     }

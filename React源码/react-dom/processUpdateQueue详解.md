@@ -197,7 +197,7 @@ export function processUpdateQueue<State>(
     // shouldComponentUpdate is tricky; but we'll have to account for
     // that regardless.
     markUnprocessedUpdateTime(newExpirationTime);
-    workInProgress.expirationTime = newExpirationTime;
+    workInProgress.expirationTime = newExpirationTime; // 0
     workInProgress.memoizedState = newState; // 此处的newState 在初始化的时候是{element: Root的React$Element}
   }
 }

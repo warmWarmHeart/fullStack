@@ -1,9 +1,10 @@
 # `performUnitOfWork`函数
 * 为当前Fiber对象所代表的ReactElement的所有子节点分配Fiber对象，且用`sibling`属性和`return`属性连接整个Fiber树
-
-* 第一阶段：执行`beginWork`，然后在`beginWork`内部根据当前`workInProgress`的`Fiber`的type以及`workInProgress`对应的ReactElement对象的`type`（就是React组件的构造函数）来创建一个新的`fiber`，指向`workInProgress`的`child`属性
-    > 当`performUnitOfWork`函数在父函数`workLoopSync`循环执行多次，生成的子`Fiber`的`tag`为`HostText`的时候，`next`这时候变成了`null`：意思是当前`fiber`对应着一段文字，以及到达Fiber树的底部，再也无法向下执行了
-* 第二个阶段：执行`completeUnitOfWork`函数
+* 1 执行`beginWork`，调用当前Fiber对象`workInProgress`所代表的ReactElement元素render函数（类组件）或者直接调用组件构造函数得到一个`children`集合，然后对此集合进行遍历，为其中每个元素都设置一个`fiber`对象，且用`sibling`属性和`return`属性连接起这些新创建的fiber和父fiber的关系。
+接着将当前fiber对象的child也就是新创建的第一个子fiber返回父函数，供外侧的`workLoopSync`函数循环调用`performUnitOfWork`函数，为这个子fiber对象所代表的react组件自身的`children`中所有react元素分配一个独一无二`Fiber`对象，直到最后该条新创建的Fiber所代表的的dom元素是文本类型的元素为止。
+* 2 当循环`performUnitOfWork`函数所的到的`fiber`对象代表的元素是文本内容的时候，调用`completeUnitOfWork`函数利用当前`Fiber`对象生成真实`dom`元素,并为其绑定各种event事件，且为其渲染文本节点等等
+* 3 当第二步为当前Fiber生成真实dom后，返回当前fiber对象的兄弟Fiber节点，再次循环执行`performUnitOfWork`函数，再次重复1、2、3步骤，直到将当前Fiber节点的所有兄弟Fiber节点全部生成真实dom，并绑定各种`attributes`属性（style、event等等）
+* 4 当上诉所有fiber的子孙级Fiber对象生成且绑定真实dom元素后，利用`performUnitOfWork`函数
 
 ## 源码
 ```javascript

@@ -2,7 +2,7 @@
 
 ## updateHostComponent
 
-* `render`第一次执行`beginWork`的时候，`workInProgress.tag` 等于 `HostRoot`, 所以我们先看 `updateHostRoot`源码
+* 这里是创建或者更新普通Html标签类型的元素
 
 ## 源码
 ```javascript

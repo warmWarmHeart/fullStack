@@ -83,7 +83,11 @@ export function reconcileChildren(
   }
 }
 ```
+### mountChildFibers
+```javascript
+const mountChildFibers = ChildReconciler(true)
 
+```
 ### `reconcileChildFibers`源码分析
 * `reconcileChildFibers`函数就是通过`ChildReconciler(true)`返回的一个函数，所以接下来直接看`ChildReconciler`源码
 ```javascript

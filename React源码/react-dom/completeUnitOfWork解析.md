@@ -824,7 +824,7 @@ function updateFiberProps(
 [参考文档](createElement解析.md)
 
 ### appendAllChildren
-* 将所有实例化的dom元素append到父元素中
+* 当前fiber对应的真实dom已经通过`createInstance`创建了出来，而且当前fiber已经存在了自己所有子孙的一个fiber链条，所以可以从`fiber`对象第一个`child`开始，取每一个`child`的真实dom元素`child.stateNode`通过`appendChild`放入父元素（当前`fiber`所对应的`stateNode`）中
 
 ```javascript
 appendAllChildren = function(
@@ -838,14 +838,17 @@ appendAllChildren = function(
     let node = workInProgress.child;
     while (node !== null) {
       if (node.tag === HostComponent || node.tag === HostText) {
+         // 当child 类型是普通html标签或者文本的时候 调用parent.appendChild将child的真实dom元素push到parent中
         appendInitialChild(parent, node.stateNode);
       } else if (enableFundamentalAPI && node.tag === FundamentalComponent) {
         appendInitialChild(parent, node.stateNode.instance);
       } else if (node.tag === HostPortal) {
+          //如果我们有一个portal子项，那么我们不想遍历它的子项。相反，我们将直接从门户中的每个子项获取插入。
         // If we have a portal child, then we don't want to traverse
         // down its children. Instead, we'll get insertions from each child in
         // the portal directly.
       } else if (node.child !== null) {
+          //从这里一直找知道找到当前dom树分支最后一个child
         node.child.return = node;
         node = node.child;
         continue;
@@ -853,7 +856,9 @@ appendAllChildren = function(
       if (node === workInProgress) {
         return;
       }
+      // 如果当前node节点的子节点不存在 回溯当前node的父节点，知道找到一个兄弟节点不为空的父节点为止，结束该循环，然后继续外部while循环，对该兄弟节点进行append其子元素，如此往复，直到node变成根节点，或者node变成workInProgress
       while (node.sibling === null) {
+        
         if (node.return === null || node.return === workInProgress) {
           return;
         }

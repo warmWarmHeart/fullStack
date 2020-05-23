@@ -858,7 +858,8 @@ appendAllChildren = function(
       }
       // 如果当前node节点的子节点不存在 回溯当前node的父节点，知道找到一个兄弟节点不为空的父节点为止，结束该循环，然后继续外部while循环，对该兄弟节点进行append其子元素，如此往复，直到node变成根节点，或者node变成workInProgress
       while (node.sibling === null) {
-        
+        // node.return等于null证明node就是根节点，
+        // node.return === workInProgress证明当前工作状态的fiber已经完成了真实dom的绑定就是他的stateNode已经完完全全是真实dom了
         if (node.return === null || node.return === workInProgress) {
           return;
         }
@@ -885,7 +886,9 @@ function appendInitialChild(
 ### finalizeInitialChildren
 * 确定初始子项
 * 为真实`dom`元素初始化各种事件、属性还有文本内容
-
+    > finalizeInitialChildren走完之后当前`Fiber.stateNode`已经是真正的dom元素了, 某些渲染器需要提交初始装载的时间效果。例如，DOM渲染器支持某些元素的自动聚焦）。
+      确保这些渲染器被安排在以后的工作中。
+    
 
 
 

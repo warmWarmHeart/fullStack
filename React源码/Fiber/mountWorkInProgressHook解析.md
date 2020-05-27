@@ -19,7 +19,7 @@ function mountWorkInProgressHook(): Hook {
 
     baseState: null,
     baseQueue: null,
-    queue: null,
+    queue: null, // 存放 useState和useReducer的相关属性，包含initialState
     next: null, // 通过next属性按照函数组件中的hook执行先后顺序进行连接
   };
   // 每个hook新创建的时候workInProgressHook都等于null

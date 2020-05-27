@@ -89,33 +89,7 @@ function basicStateReducer<S>(state: S, action: BasicStateAction<S>): S {
 * [参考文档](useCallback解析.md)
 
 ### mountEffect
-* `mountEffect`函数主要调用了`mountEffectImpl`函数，接下来主要看`mountEffectImpl`函数
-* `mountEffectImpl`函数的形参：
-    - fiberEffectTag：UpdateEffect | PassiveEffect = 0b0000000000100 | 0b0001000000000 = 0b0001000000100 = 516
-    - hookEffectTag：HookPassive = 0b100 = 4
-    - create: `useEffect`第一个参数，一个函数，代表被动效果执行函数
-    - deps：`useEffect`第二个参数，一个数组，代表该被动效果的依赖列表，deps里的任何一个变量变化时都会触发`create`参数的执行
-* 执行步骤：
-    - 新建一个hook，且将hook绑定为函数组件Fiber的`memoizedState`和`workInProgressHook`或者`workInProgressHook.next`
-    - 设置`workInProgress`的`effectTag`属性，供React DevTools使用
-    - 给上面新建的`hook`的`memoizedState`属性赋值
-    
-* 执行完后 Fiber对象`workInProgress`和当前组件的hooks以及当前组件的effects的关系如下图：
-![effect](./img/Fiber-hook-effect.png)
-* 源码如下：
-```javascript
-function mountEffectImpl(fiberEffectTag, hookEffectTag, create, deps): void {
-  const hook = mountWorkInProgressHook();
-  const nextDeps = deps === undefined ? null : deps;
-  currentlyRenderingFiber.effectTag |= fiberEffectTag;
-  hook.memoizedState = pushEffect(
-    HookHasEffect | hookEffectTag,
-    create,
-    undefined,
-    nextDeps,
-  );
-}
-```
+[参考文档](useEffect解析.md)
 
 ### mountLayoutEffect
 [参考文档](useLayoutEffect解读.md)

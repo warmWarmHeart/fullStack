@@ -59,7 +59,7 @@ export type Fiber = {|
   // Singly Linked List Tree Structure.
   // 单链表树结构
   // 指向自己的第一个子节点
-  child: Fiber | null,
+  child: Fiber | null, // 类组件构造函数child指向通过执行类组件render后返回的reactElement所代表的的Fiber对象，函数组件则是指向通过构造函数执行后return的reactElement所代表的Fiber对象
   // 指向自己的兄弟结构
   // 兄弟节点的return指向同一个父节点
   sibling: Fiber | null,

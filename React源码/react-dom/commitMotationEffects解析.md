@@ -1,4 +1,6 @@
 # commitMutationEffects 解读
+* 循环Fiber对象的Effect链
+* 最后调用commitPlacement将所有子节点放到container中，渲染到页面上
 
 ```javascript
 function commitMutationEffects(root: FiberRoot, renderPriorityLevel) {

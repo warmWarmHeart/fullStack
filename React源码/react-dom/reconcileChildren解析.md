@@ -548,6 +548,14 @@ function coerceRef(
 
 ### reconcileChildrenArray
 * 当外界传给`reconcileChildren`的`nextChildren`类型是`Array`的时候调用此函数
+    > 当某些组件的render出来的children所对应的fiber中有多个child的时候会触发此函数如：
+        ```
+        // 下面代码所代表的fiber  会触发此函数
+        <div>
+            hello
+            <SelfComponent>
+        </div>
+        ```
 * 如果是初次渲染则为`nextChildren`每个元素都分配一个`fiber`对象
 * 否则按照新旧Fiber对象的key、index等属性进行更新Fiber操作
 

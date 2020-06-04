@@ -52,7 +52,7 @@ function renderRootSync(root, expirationTime) {
 * 初始化其`workInProgress`的其他状态
     - workInProgressRootExitStatus = RootIncomplete;
     - workInProgressRootFatalError = null;
-    - workInProgressRootLatestProcessedExpirationTime = Sync;
+    - workInProgressRootLatestProcessedExpirationTime = Sync; // 正在处理根最新处理的过期时间
     - workInProgressRootLatestSuspenseTimeout = Sync;
     - workInProgressRootCanSuspendUsingConfig = null;
     - workInProgressRootNextUnprocessedUpdateTime = NoWork;
@@ -91,7 +91,7 @@ function prepareFreshStack(root, expirationTime) {
   workInProgressRootExitStatus = RootIncomplete;
   // 初始化root的一系列状态
   workInProgressRootFatalError = null;
-  workInProgressRootLatestProcessedExpirationTime = Sync;
+  workInProgressRootLatestProcessedExpirationTime = Sync; // 正在处理根最新处理的过期时间
   workInProgressRootLatestSuspenseTimeout = Sync;
   workInProgressRootCanSuspendUsingConfig = null;
   workInProgressRootNextUnprocessedUpdateTime = NoWork;

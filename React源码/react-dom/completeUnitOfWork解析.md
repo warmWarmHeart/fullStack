@@ -1,5 +1,8 @@
 # completeUnitOfWork 解析
-
+* 当`workInProgress`Fiber对象是文本类型的时候会执行此处
+    - 目的一：根据此文本类型的Fiber对象生成真实dom的文本元素，且绑定到`Fiber.statNode`上
+    - 目的二：如果此Fiber对象有兄弟Fiber节点，则返回其兄弟Fiber节点，让其再次执行`workLoopSync`中的`performUnitOfWork`函数，从而针对兄弟Fiber的ReactElement树，进行对应元素的Fiber的创建以及真实dom元素的创建和绑定
+    -
 ```javascript
 // beginWork之后 若不需要再向下遍历，Fiber 节点会开始回溯，判断是否存在兄弟节点需要进行遍历，
 // 如果没有，则回溯到父节点，并将自身及自身子树上的 effect 形成 effect list 向父节点传递，以此往复，直至 HostRoot，
@@ -112,7 +115,7 @@ function completeUnitOfWork(unitOfWork: Fiber): Fiber | null {
       // If there is more work to do in this returnFiber, do that next.
       return siblingFiber;
     }
-    //否则，返回父级
+    //否则，返回父级 // 这里证明所有子节点的stateNode已经全部是真实dom了
     // Otherwise, return to the parent
     workInProgress = returnFiber;
   } while (workInProgress !== null);
@@ -770,6 +773,7 @@ function completeWork(
 * [参考文档](mountHostComponent解析.md)
 
 ### createInstance
+* 当当前Fiber对象tag为`HostComponent`时执行此函数
 * 创建真实dom元素
 * 
 ```javascript

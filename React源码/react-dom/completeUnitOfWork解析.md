@@ -829,7 +829,11 @@ function updateFiberProps(
 
 ### appendAllChildren
 * 当前fiber对应的真实dom已经通过`createInstance`创建了出来，而且当前fiber已经存在了自己所有子孙的一个fiber链条，所以可以从`fiber`对象第一个`child`开始，取每一个`child`的真实dom元素`child.stateNode`通过`appendChild`放入父元素（当前`fiber`所对应的`stateNode`）中
+* 1 首先遍历当前Fiber所有子Fiber节点，将其真实dom全部插入到当前Fiber的真实dom之中，
+* 2 当兄弟节点全部插入完毕，就回溯到当前Fiber的父Fiber对象，继续步骤1
+* 3 当父Fbier对象为null时证明已经到达了根Fiber节点，整个Fiber节点全部绑定了真实dom，所以退出此函数，以便进行根节点的真实渲染
 
+* 源码
 ```javascript
 appendAllChildren = function(
     parent: Instance, // 这是真实dom
@@ -852,7 +856,7 @@ appendAllChildren = function(
         // down its children. Instead, we'll get insertions from each child in
         // the portal directly.
       } else if (node.child !== null) {
-          //从这里一直找知道找到当前dom树分支最后一个child
+        // 比如node是一个tag是 classComponent或者FunctionComponent的Fiber时候要取到他们的child（直到取到一个真实dom为止）
         node.child.return = node;
         node = node.child;
         continue;
@@ -867,7 +871,7 @@ appendAllChildren = function(
         if (node.return === null || node.return === workInProgress) {
           return;
         }
-        node = node.return;
+        node = node.return; // 回溯父Fiber节点，到这一步的时候 该父Fiber下面所有节点已经全部是真实 dom了 所以继续此循环将所有子真实dom插入到父Fiber对应的真实dom中
       }
       // 通过这里 循环遍历当前节点的兄弟节点以及兄弟节点所有子节点
       node.sibling.return = node.return;

@@ -25,9 +25,8 @@ function performUnitOfWork(unitOfWork: Fiber): Fiber | null {
   unitOfWork.memoizedProps = unitOfWork.pendingProps;
   if (next === null) {
     
-    // 当next = null 的时候证明 当前元素已经没有child了，props.children已经是字符串或者数字类型，所以需要回溯找他returnFiber的兄弟节点，然后继续进行beginWork。。。。知道找到rootFiber
     //如果这没有产生新的工作，请完成当前的工作。
-    // 进入这个流程，表明 workInProgress 节点是一个叶子节点，或者它的子节点都已经处理完成了。现在开始要完成这个节点处理的剩余工作。
+    // 进入这个流程，表明 workInProgress 节点是一个文本节点或者是一个子节点已经全部解析为了真实dom的节点如 text节点或者<div>a2esfas</div>这样的节点。
     // If this doesn't spawn new work, complete the current work.
     next = completeUnitOfWork(unitOfWork);
   }

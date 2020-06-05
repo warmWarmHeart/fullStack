@@ -26,15 +26,8 @@ function completeUnitOfWork(unitOfWork: Fiber): Fiber | null {
     // Incomplete === 2048 ;workInProgress.effectTag = 0 所以这里的条件满足
     if ((workInProgress.effectTag & Incomplete) === NoEffect) {
       let next;
-      if (
-        !enableProfilerTimer ||
-        (workInProgress.mode & ProfileMode) === NoMode
-      ) {
-        next = completeWork(current, workInProgress, renderExpirationTime);
-      } else {
-        // completeWork方法中，会根据workInProgress.tag来区分出不同的动作
-        next = completeWork(current, workInProgress, renderExpirationTime);
-      }
+      // completeWork方法中，会根据workInProgress.tag来区分出不同的动作
+      next = completeWork(current, workInProgress, renderExpirationTime);
       resetChildExpirationTime(workInProgress);
 
       if (next !== null) {
@@ -111,6 +104,7 @@ function completeUnitOfWork(unitOfWork: Fiber): Fiber | null {
 
     const siblingFiber = workInProgress.sibling;
     if (siblingFiber !== null) {
+      // 继续执行 workLoopSync函数的循环体
       //如果在这个回程光纤中还有更多的工作要做，请接着做。
       // If there is more work to do in this returnFiber, do that next.
       return siblingFiber;
@@ -130,8 +124,15 @@ function completeUnitOfWork(unitOfWork: Fiber): Fiber | null {
 ```
 
 ### completeWork
-* 根据`fiber`相关属性创建真实DOM元素
-* 
+* 根据`fiber`相关属性tag创建真实DOM元素
+* 当tag是普通文本标签时，直接创建文本dom标签，然后与workInProgress.stateNode绑定
+* 普通dom标签元素的时候，（只有标签元素满足如下条件才可以进行此处逻辑），先创建真实dom标签实例，再将当前Fiber所有子Fiber的stateNode所指向的真实dom全部插入其中
+    ```javascript
+      return type === 'textarea' || type === 'option' || type === 'noscript' || typeof props.children === 'string' || typeof props.children === 'number' || typeof props.dangerouslySetInnerHTML === 'object' && props.dangerouslySetInnerHTML !== null && props.dangerouslySetInnerHTML.__html != null;
+    ```
+* 如果是其他类型的reactElement所代表的Fiber，则返回Null不做处理
+
+* 源码
 ```javascript
 function completeWork(
   current: Fiber | null,
@@ -769,6 +770,7 @@ function completeWork(
   );
 }
 ```
+
 ### updateHostComponent
 * [参考文档](mountHostComponent解析.md)
 
@@ -861,6 +863,7 @@ appendAllChildren = function(
         node = node.child;
         continue;
       }
+      //当node 等于 workInProgress 证明当前Fiber的真实dom已经全部组装完毕
       if (node === workInProgress) {
         return;
       }

@@ -96,7 +96,7 @@ function unstable_scheduleCallback(priorityLevel, callback, options) {
 }
 ```
 
-* `requestHostTimeout` 
+### `requestHostTimeout` 
 
 通过`requestHostTimeout`调用`handleTimeout`，将`handleTimeout`放在`setTimeout`函数内延迟到下次宏任务执行，当传给setTimeout的时间到期后执行`handleTimeout`函数，
 `handleTimeout`会首先调用`advanceTimers`看是否有到期需要执行的callback，有的话转移任务到taskQueue任务队列，然后通过查看taskQueue是否为空决定是调用`requestHostCallback`，还是继续调用`requestHostTimeout`等待下次事件循环的时候重新执行这次逻辑
@@ -113,7 +113,8 @@ function unstable_scheduleCallback(priorityLevel, callback, options) {
         taskTimeoutID = -1;
     };
 ```
-* `requestHostCallback` 
+### `requestHostCallback` 
+* 在每一帧内执行调度任务（callback）
 
 `requestHostCallback` 通过浏览器兼容性来判断具体使用`setTimeout`还是`MessageChannel`处理任务
  
@@ -187,7 +188,7 @@ const requestHostCallback = function(callback) {
   };
 ```
 
-* `handleTimeout`
+#### `handleTimeout`
 ```javascript
 function handleTimeout(currentTime) {
   isHostTimeoutScheduled = false;

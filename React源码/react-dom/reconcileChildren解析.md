@@ -1,4 +1,5 @@
 # reconcileChildren解析
+将 ReactElement 变成 fiber对象，并更新
 
 ## `reconcileChildren` 函数
 * `mount`阶段为传入的所有**直接**子元素分配`Fiber`
@@ -221,8 +222,8 @@ function placeSingleChild(newFiber: Fiber): Fiber {
 ```javascript
 function reconcileSingleElement(
     returnFiber: Fiber,
-    currentFirstChild: Fiber | null, // 第一次为null
-    element: ReactElement, // <App>
+    currentFirstChild: Fiber | null, //旧的父Fiber的第一个子Fiber对象
+    element: ReactElement, // <App> // 新的父Fiber的第一个子Fiber对象
     expirationTime: ExpirationTime,
   ): Fiber {
     const key = element.key; // 第一次为null
@@ -231,7 +232,9 @@ function reconcileSingleElement(
       //TODO:如果key==null和child.key==null，则这仅适用于列表中的第一个项。
       // TODO: If key === null and child.key === null, then this only applies to
       // the first item in the list.
+      //key 相同的话复用节点
       if (child.key === key) {
+      //复用 child，删除它的兄弟节点 因为旧节点它有兄弟节点，新节点只有它一个
         switch (child.tag) {
           case Fragment: {
             if (element.type === REACT_FRAGMENT_TYPE) {
@@ -291,8 +294,9 @@ function reconcileSingleElement(
       }
       child = child.sibling;
     }
-
+    //创能执行到这边说明之前是 null，现在要新建节点
     if (element.type === REACT_FRAGMENT_TYPE) {
+          //创建Fragment类型的 fiber 节点
       const created = createFiberFromFragment(
         element.props.children,
         returnFiber.mode,
@@ -302,7 +306,6 @@ function reconcileSingleElement(
       created.return = returnFiber;
       return created;
     } else {
-      // 第一次render会走这里
       // 创建一个与ReactElement相对于应的fiber且将该fiber与父fiber相关联
       const created = createFiberFromElement(
         element,
@@ -985,4 +988,79 @@ function createFiberFromText(
   fiber.expirationTime = expirationTime;
   return fiber;
 }
+````
+#### useFiber
+复制 fiber 节点，并重置 index 和 sibling
+
+````javascript
+ function useFiber(fiber: Fiber, pendingProps: mixed): Fiber {
+    //我们目前在这里将sibling设置为null，index设置为0，因为在返回它之前很容易忘记这样做。E、 g.对于独生子女案件。
+    // We currently set sibling to null and index to 0 here because it is easy
+    // to forget to do before returning it. E.g. for the single child case.
+    const clone = createWorkInProgress(fiber, pendingProps);
+    clone.index = 0;
+    clone.sibling = null;
+    return clone;
+  }
+````
+
+#### deleteRemainingChildren
+删除旧节点
+
+````javascript
+function deleteRemainingChildren(
+    returnFiber: Fiber,
+    currentFirstChild: Fiber | null,
+  ): null {
+    //第一次渲染的情况
+    if (!shouldTrackSideEffects) {
+      // Noop.
+      return null;
+    }
+
+     //从当前节点的第一个子节点开始，进行删除操作
+    // TODO: For the shouldClone case, this could be micro-optimized a bit by
+    // assuming that after the first child we've already added everything.
+    let childToDelete = currentFirstChild;
+    while (childToDelete !== null) {
+      //删除目标节点的所有子节点，并循环寻找兄弟节点,删除它们的子节点
+      deleteChild(returnFiber, childToDelete);
+      childToDelete = childToDelete.sibling;
+    }
+    return null;
+  }
+````
+##### deleteChild
+
+````javascript
+function deleteChild(returnFiber: Fiber, childToDelete: Fiber): void {
+    if (!shouldTrackSideEffects) {
+      // Noop.
+      return;
+    }
+    //删除是按相反的顺序添加的，所以我们将其添加到前面。
+    //此时，除了删除之外，返回光纤的效果列表是空的，因此我们可以将删除附加到列表中。剩余的效果直到完成阶段才会添加。一旦我们实施恢复，这可能不是真的。
+    // Deletions are added in reversed order so we add it to the front.
+    // At this point, the return fiber's effect list is empty except for
+    // deletions, so we can just append the deletion to the list. The remaining
+    // effects aren't added until the complete phase. Once we implement
+    // resuming, this may not be true.
+    // 将要删除的fiber打上Deletion标记后加到父Fiber的lastEffect的nextEffect上
+    // returnFiber.lastEffect指向returnFiber.memoizedstate的一个Hook，Hook的memoizedState指向一个effect effects是一个闭合连
+    // 下面将returnFiber.lastEffect从最后一个effect指向第一个effect，且将第一个effect的effectTag设置为Deletion，并且将该effect后所有的effect舍弃掉
+    
+    //标记副作用，以便在 commit 阶段进行删除
+    const last = returnFiber.lastEffect;
+    if (last !== null) {
+      last.nextEffect = childToDelete;
+      returnFiber.lastEffect = childToDelete;
+    } else {
+      returnFiber.firstEffect = returnFiber.lastEffect = childToDelete;
+    }
+    childToDelete.nextEffect = null;
+    //这里并未执行删除操作，而仅仅是给effectTag赋值了Deletion
+    //因为这里仍是对 fiber 树的更新，未涉及到真正的 DOM 节点
+    //真正的删除留到 commit 阶段
+    childToDelete.effectTag = Deletion;
+  }
 ````

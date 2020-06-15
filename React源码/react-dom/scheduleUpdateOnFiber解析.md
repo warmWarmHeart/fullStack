@@ -47,6 +47,7 @@ export function scheduleUpdateOnFiber(
   // 如果当前是同步更新的
   if (expirationTime === Sync) {
     // 如果不是批量更新或者  不是render或commit阶段，则直接同步调用任务
+      //如果还未渲染，update是未分批次的，就是第一次渲染前
     if (
       // unbatchedUpdates 函数执行的时候 executionContext 会设置为 LegacyUnbatchedContext
       // 如果正在执行的上下文是unbatchUpdate不是批量更新
@@ -62,6 +63,7 @@ export function scheduleUpdateOnFiber(
       // 内部会执行 1 flushPassiveEffects 2 renderRootSync 3 commitRoot 4 ensureRootIsScheduled
       performSyncWorkOnRoot(root);
     } else {
+      // render后 立即执行调度任务
       ensureRootIsScheduled(root);
       if (executionContext === NoContext) {
         //现在刷新同步工作，除非我们已经在工作或在批处理中。
@@ -76,10 +78,9 @@ export function scheduleUpdateOnFiber(
       }
     }
   } else {
-    // 这个是真正任务调度的入口
+    //如果是异步任务的话，则立即执行调度任务
     // 每一个root都有一个唯一的调度任务，如果已经存在，我们要确保到期时间与下一级别任务的相同，每一次更新都会调用这个方法
     //使用此函数可为根目录安排任务。每个根目录下只有一个任务；如果已经计划了任务，我们将检查以确保现有任务的过期时间与根目录下一个工作级别的过期时间相同。
-    // 此函数在每次更新时调用，并在退出任务之前调用。
     ensureRootIsScheduled(root);
   }
 
@@ -94,6 +95,9 @@ export function scheduleUpdateOnFiber(
 }
 ```
 ### `markUpdateTimeFromFiberToRoot`函数
+* 多个子节点更新，取最大的expirationTime作为父节点的childExpirationTime每个父节点上只会有一个expirationTime和一个childExpirationTime，当有多个子节点都有更新时，取子节点最大的（优先级最高的）expirationTime，作为父节点的childExpirationTime
+* 单个子节点多次更新，取某次更新出的最大的expirationTime作为自身的expirationTime
+    > 在 React 自上而下更新 fiber 树的时候，每个节点会执行update方法，根据expirationTime和childExpirationTime的优先级大小来判断该节点本身、该节点的子节点是否需要在本次渲染（这一帧）的时候更新。
 ```javascript
 function markUpdateTimeFromFiberToRoot(fiber, expirationTime) {
   // 跟新fiber的过期时间 render App 的时候会将expirationTime设置为HostRootFiber.expirationTime

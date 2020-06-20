@@ -4,13 +4,6 @@ protobuf.js是基于ByteBuffer.js的Protocol Buffers纯JavaScript实现，主要
 
 ## Protocol Buffers
 Protocol Buffers是Google公司开发的一种数据描述语言，类似于XML能够将结构化数据序列化，可用于数据存储、通信协议等方面。它不依赖于语言和平台并且可扩展性极强。现阶段官方支持C++、JAVA、Python等三种编程语言，但可以找到大量的几乎涵盖所有语言的第三方拓展包。
-* json传输和Protocol Buffers的对比：
-    - json
-        ```javascript
-        [
-            {"Name": "zhangsan", "Gender": 0, "Age": 18},
-            {"Name": "lisi", "Gender": 1, "Age": 19}
-        ]
-        ```
-    - Protocol Buffers
-    
+[参考文档](Protocol-Buffers.md)
+
+

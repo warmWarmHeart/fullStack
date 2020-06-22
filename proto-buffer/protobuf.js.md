@@ -56,14 +56,56 @@ $ vim pbjs.cmd
 import protobufjs from 'protobufjs'
 ```
 * 引入`.proto`文件
-```javascript
-import c2ai from '../proto/c2ai.proto'
-```
+    - 新建.proto文件
+    ```
+    syntax = "proto3";
+    package protocol.protobuf;
+    
+    option java_package = "xxx.protobuf";
+    option java_outer_classname = "C2Ai";
+    
+    message C2AiRequest {//用户发给机器人的消息
+      string from = 1;//发送者ID
+      string fromName = 2;
+      int32 fromDomain = 3;//发送者所属用户类型,具体见DomainType
+      string guid=4;//用户guid
+      int64 chatId = 5;//会话ID
+      string sceneId=6;//场景ID
+      string content = 7;//消息内容
+      int32 type = 8;//消息类型，比如文本，图片，文件等
+      string appId = 9;//app标识
+      string ext = 10;//扩展内容，建议采用富文本
+    }
+    
+    message C2AiResponse {
+        int64 msgid = 1;//落地存储的消息id（针对此条消息）
+        int64 timestamp = 2;//收到群聊消息的时间戳
+    }
+    
+    
+    ```
+    - 在js中引入.proto文件
+        > 原理是：webpack中配置loader，将.proto文件当做string引入
+        ```
+        {
+            test: /\.proto$/,
+            loader: 'raw-loader',
+        }
+        ```
+    ```javascript
+    import c2ai from '../proto/c2ai.proto'
+    ```
 * protobufjs.parse
 分析给定的.proto源并返回包含已分析内容的对象object。
 
 ```javascript
 const parser = protobufjs.parse(c2ai)
+```
+* protobufjs.lookup
+> 通过lookup得到的是一个message有效消息对象，里面有`create`、`encode`、`decode`、'fromObject`、`toObject`等protobufjs消息对象所有的方法
+```javascript
+const Request = root.lookup('C2AiRequest')
+const Response = root.lookup('C2AiResponse')
 ```
 
 **本文档内容摘自此博客[https://www.jianshu.com/p/da48fb06b29f],推荐大家阅读源博客，更深入**

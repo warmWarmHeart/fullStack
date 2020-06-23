@@ -1,5 +1,5 @@
 # socket.io
-http://socket.io 是基于 WebSocket 的 C-S 实时通信库，我假设题目问的是 http://socket.io 而非 WebSocket 协议的实现。http://socket.io 底层是 http://engine.io，这个库实现了跨平台的双向通信。http://engine.io 使用了 WebSocket 和 XMLHttprequest（或JSONP） 封装了一套自己的 Socket 协议（暂时叫 EIO Socket），在低版本浏览器里面使用长轮询替代 WebSocket。一个完整的 EIO Socket 包括多个 XHR 和 WebSocket 连接.
+http://socket.io 是基于 WebSocket 的 C-S 实时通信库。http://socket.io 底层是 http://engine.io，这个库实现了跨平台的双向通信。http://engine.io 使用了 WebSocket 和 XMLHttprequest（或JSONP） 封装了一套自己的 Socket 协议（暂时叫 EIO Socket），在低版本浏览器里面使用长轮询替代 WebSocket。一个完整的 EIO Socket 包括多个 XHR 和 WebSocket 连接.
 
 ## 客户端
 * 获取sid    

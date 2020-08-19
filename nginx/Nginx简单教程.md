@@ -19,36 +19,48 @@
 ## Nginx的安装和配置
 
 ### 安装前准备
+
 * gcc编译器： 用于官网源码进行编译，依赖于gcc环境
-<code>
+
+```
 yum -y install gcc gcc-c++ autoconf automake
-</code>
+```
+
 * 依赖模块： Nginx的一些模块需要第三方库支持
-<code>
-        `yum -y install zlib zlib-devel openssl openssl-devel pcre pcre-devel`
-</code>
+
+```
+    yum -y install zlib zlib-devel openssl openssl-devel pcre pcre-devel
+```
 * 下载地址： http://nginx.org/en/download.html
-    ```
-        // wget 是一个从网络上自动下载文件的自由工具
-        yum -y install wget
-        wget -o /tep/nginx.tar.gz http://nginx.org/download/nginx-1.16.1.tar.gz
-    ```
+
+```
+    // wget 是一个从网络上自动下载文件的自由工具
+    yum -y install wget
+    wget -o /tmp/nginx.tar.gz http://nginx.org/download/nginx-1.16.1.tar.gz
+```
 
 ### Nginx编译安装
 * 解压
-    `tar -zxvf /tmp/nginx.tar.gz`
-    `cd /tmp/nginx-1.16.1`
+
+```
+    tar -zxvf /tmp/nginx.tar.gz
+    cd /tmp/nginx-1.16.1
+```
+    
 * 配置安装路径
-    `/configure --prefix=/usr/local/nginx`
-    `make`
-    `make install`
+```
+./configure --prefix=/usr/local/nginx         ##设置Nginx安装路径，如果没有指定，默认为/usr/local/nginx
+make                                           ##make的过程是把各种语言写的源码文件，变成可执行文件和各种库文件
+make install
+```
     
 * 查看nginx是否安装成功
-    `cd /usr/local/nginx/sbin`
-    `./nginx`
+```
+    cd /usr/local/nginx/sbin
+    ./nginx
     
-    > `./nginx -s stop` 停止
-    
+    ./nginx -s stop  #停止
+```
 ### 环境变量的配置
  ```
     yum -y install vim
